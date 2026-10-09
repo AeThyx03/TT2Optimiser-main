@@ -7,6 +7,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PlayerUITests(unittest.TestCase):
+    def test_collection_priorities_and_filters(self):
+        app = self.app()
+        app.text_area(key="json_input").input((ROOT / "examples/player-demo.json").read_text()).run()
+        self.click(app, "Import player")
+        self.assertFalse(app.exception)
+        self.assertTrue(any("Focus upgrades on" in x.value for x in app.info))
+        cards = [x.value for x in app.markdown if "collection-card" in x.value]
+        self.assertTrue(any("Upgrade first" in x for x in cards))
+        self.assertTrue(any("data:image/png;base64" in x for x in cards))
+        app.text_input(key="search_monuments").input("no matching monument").run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("No items match" in x.value for x in app.info))
+
     def app(self):
         return AppTest.from_file(str(ROOT / "player_optimizer.py"), default_timeout=30).run()
 

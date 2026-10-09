@@ -1,11 +1,12 @@
 import json
 import unittest
+import math
 from decimal import Decimal
 from pathlib import Path
 
 
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
-from src.tt2_optimizer import Settings, bonus_weight, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
+from src.tt2_optimizer import Settings, bonus_weight, item_effect_gain, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
 from src.tt2_player import ImportError, parse_player
 
 DEMO = Path(__file__).resolve().parents[1] / "examples/player-demo.json"
@@ -182,6 +183,31 @@ class SkillTests(unittest.TestCase):
 
 
 class ItemTests(unittest.TestCase):
+    def test_finite_effect_gain_and_enchantment(self):
+        item = {"EffectPerLevel": ".5", "GrowthExpo": "2", "EnchantmentMult": "100"}
+        expected = math.log10((1 + .5 * 11**2) / (1 + .5 * 10**2))
+        self.assertAlmostEqual(10 ** item_effect_gain(item, Decimal(10)), expected)
+        enchanted = math.log10((1 + 50 * 11**2) / (1 + 50 * 10**2))
+        self.assertAlmostEqual(10 ** item_effect_gain(item, Decimal(10), True), enchanted)
+        self.assertTrue(math.isfinite(item_effect_gain(item, Decimal('1e1000'))))
+
+    def test_collection_damage_and_affordability(self):
+        p = parse_player(api_player(artifacts={"Artifact20": 10, "Artifact30": 10}, relics=0))
+        rows = rank_items(p, Settings(build="Clan Ship"))
+        self.assertTrue(all(row["Affordable"] is False for row in rows))
+        self.assertEqual(rows[0]["Relative efficiency %"], 100)
+        self.assertTrue(all(row["log_efficiency"] is not None for row in rows))
+        p.relics = Decimal('1e100')
+        self.assertTrue(all(row["Affordable"] is True for row in rank_items(p, Settings())))
+
+    def test_enchantment_aliases_in_both_collections(self):
+        data = api_player(artifacts={"Book of Prophecy": {"level": 1, "enchanted": True}},
+                          monuments={"Skull Island": {"level": 1, "enchanted": True}})
+        p = parse_player(data)
+        self.assertIn("Artifact20", p.enchanted)
+        self.assertIn("SeasonalArtifact1", p.monument_enchanted)
+        self.assertTrue(rank_items(p, Settings(), "monuments")[0]["Enchanted"])
+
     def test_huge_levels_and_relevance(self):
         p = parse_player(api_player(artifacts={"Artifact30": "1e1000", "Artifact38": 30, "Future": 1}))
         rows = {r["ID"]: r for r in rank_items(p, Settings())}
@@ -197,7 +223,10 @@ class ItemTests(unittest.TestCase):
     def test_monument_build_changes_priority(self):
         p = parse_player(api_player(seasonal_artifacts=[{"artifact_id": "SeasonalArtifact10", "level": 10}]))
         self.assertEqual(rank_items(p, Settings(), "monuments")[0]["Priority"], 1)
-        self.assertIsNone(rank_items(p, Settings(build="Pet"), "monuments")[0]["Priority"])
+        cs = rank_items(p, Settings(), "monuments")[0]
+        pet = rank_items(p, Settings(build="Pet"), "monuments")[0]
+        self.assertIn("collection damage only", pet["Status"])
+        self.assertGreater(cs["log_efficiency"], pet["log_efficiency"])
 
 
 if __name__ == "__main__":

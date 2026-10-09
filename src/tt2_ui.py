@@ -26,6 +26,37 @@ def background_image():
     path = Path(__file__).resolve().parents[1] / "static" / "tt2-background.png"
     return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
+
+@lru_cache(maxsize=256)
+def item_icon(key):
+    path = Path(__file__).resolve().parents[1] / "static" / "item-icons" / f"{key}.png"
+    if not path.is_file():
+        return None
+    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+
+
+def collection_card(row, currency, featured=False):
+    name = html.escape(row["Name"])
+    icon = item_icon(row["ID"])
+    artwork = f'<img src="{icon}" alt="{name}">' if icon else '<span class="item-art-missing">Artwork<br>unavailable</span>'
+    priority = row["Priority"]
+    badge = "Upgrade first" if featured else f"#{priority}" if priority else row["Status"]
+    efficiency = row["Relative efficiency %"]
+    efficiency_text = f"{efficiency:g}% of best value" if efficiency is not None else "Unranked"
+    reason = "Primary effect + collection damage" if row["Status"] == "Ranked (estimate)" else row["Status"]
+    available = "Within current balance" if row["Affordable"] is True else "Save more first" if row["Affordable"] is False else "Balance not provided"
+    st.markdown(
+        f'<article class="collection-card{ " featured" if featured else ""}">'
+        f'<div class="item-art">{artwork}</div><div class="item-body">'
+        f'<span class="item-badge">{html.escape(badge)}</span><h4>{name}</h4>'
+        f'<div class="item-level">Level {html.escape(row["Level"])}{ " · Enchanted" if row["Enchanted"] else ""}</div>'
+        f'<div class="item-efficiency">{efficiency_text}</div>'
+        f'<div class="item-meter"><span style="width:{efficiency or 0}%"></span></div>'
+        f'<div class="item-cost">Next level ≈ {row["Next cost (estimate)"] or "—"} {currency}</div>'
+        f'<div class="item-reason">{html.escape(reason)} · {available if priority else ""}</div>'
+        '</div></article>', unsafe_allow_html=True,
+    )
+
 def install_player(payload, source):
     player = parse_player(payload, source)
     st.session_state["tt2_player"] = player
@@ -37,13 +68,39 @@ def inventory(player, settings, kind):
     if not rows:
         st.info(f"No {kind} were included in this export. Import a full player export to see them here.")
         return
-    st.caption("Approximate upgrade priorities use your owned levels, the selected build and gold source, and the snapshot's growth and cost exponents. These are relative priorities, not exact prices or a relic spending plan. Conditional effects, enchantment changes and total artifact damage interactions are not simulated.")
+    currency = "relics" if kind == "artifacts" else "mementos"
+    ranked = [r for r in rows if r["Priority"] is not None]
+    if ranked:
+        best = ranked[0]
+        collection_card(best, currency, featured=True)
+        if kind == "monuments":
+            st.info(f"Focus upgrades on {best['Name']} first for {settings.build} / {settings.gold}. Compare value per memento, rather than matching monument levels. Re-import after upgrades to see when another monument becomes the better choice.")
+        else:
+            st.caption(f"Best next upgrade for {settings.build} / {settings.gold}: {best['Name']}.")
+        if best["Affordable"] is False:
+            next_affordable = next((r for r in ranked if r["Affordable"] is True), None)
+            if next_affordable:
+                st.caption(f"Best value needs more {currency}. Best affordable alternative: {next_affordable['Name']} (#{next_affordable['Priority']}).")
+            else:
+                st.caption(f"Your current balance cannot buy a ranked next level. Save more {currency}.")
+    else:
+        st.info("No upgrade can be ranked from this collection: check caps, season activity and supported effects.")
+    st.caption("Upgrade value = modeled next-level gain per currency spent. Different effects, costs and current levels lead to different priorities. These estimates include collection damage; conditional effects remain fixed.")
     search = st.text_input(f"Search {kind}", key=f"search_{kind}", placeholder="Name, effect, or ID")
     only = st.checkbox("Show ranked upgrades only", key=f"ranked_{kind}")
-    visible = [r for r in rows if (not only or r["Priority"] is not None) and search.lower() in (r["Name"] + r["Effect"] + r["ID"]).lower()]
-    display = [{"Priority": r["Priority"], "Name": r["Name"], "Level": r["Level"], "Status": r["Status"], "Effect": r["Effect"], "ID": r["ID"]} for r in visible]
-    st.dataframe(pd.DataFrame(display), hide_index=True, width="stretch")
-    st.download_button(f"Download {kind} priorities", pd.DataFrame(display).to_csv(index=False), f"tt2-{kind}.csv", "text/csv", key=f"download_{kind}")
+    affordable = st.checkbox("Show affordable upgrades only", key=f"affordable_{kind}", disabled=(player.relics if kind == "artifacts" else player.mementos) is None)
+    visible = [r for r in rows if (not only or r["Priority"] is not None) and (not affordable or r["Affordable"] is True) and search.lower() in (r["Name"] + r["Effect"] + r["ID"]).lower()]
+    display = [{field: r[field] for field in ("Priority", "Name", "Level", "Relative efficiency %", "Next cost (estimate)", "Affordable", "Gain log10 (estimate)", "Enchanted", "Status", "Effect", "ID")} for r in visible]
+    if not visible:
+        st.info("No items match these filters.")
+    for start in range(0, len(visible), 2):
+        columns = st.columns(2)
+        for col, row in zip(columns, visible[start:start + 2]):
+            with col:
+                collection_card(row, currency)
+    with st.expander("Compare upgrade numbers"):
+        st.dataframe(pd.DataFrame(display), hide_index=True, width="stretch")
+        st.download_button(f"Download {kind} priorities", pd.DataFrame(display).to_csv(index=False), f"tt2-{kind}.csv", "text/csv", key=f"download_{kind}")
 
 
 def render_skill_tree(levels, current_levels):
@@ -268,5 +325,5 @@ def render():
     with monument_tab:
         st.subheader("Your seasonal monuments")
         st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
-        st.warning("Season activity and scaling come from the pinned snapshot, not a live season check. Conditional monument effects are held constant in the approximate ranking.")
+        st.caption("Season activity comes from the pinned snapshot. Monument effect and collection-damage exponents use their own table values; live season counters and equipment interactions are not simulated.")
         inventory(player, settings, "monuments")

@@ -334,12 +334,16 @@ def bonus_weight(bonus, settings):
     if bonus in {"AllHelperDamage", "MeleeHelperDamage", "RangedHelperDamage", "SpellHelperDamage", "GroundHelperDamage", "FlyingHelperDamage", "HelperBoostSkillAmount", "InspiredHelperDamage", "HelperWeaponBoost", "HelperWeaponSetBoost", "ClanScrollBoost", "ClanScrollSetBoost", "HelperBoostSkillAmountDuringTapBoostSkill"}:
         return hero
     targets = {
+        "BoostedSwordAttackDamage": ("Heavenly Strike", "Dagger", "Gold Gun"),
+        "BuildBoostCSHSSC": ("Clan Ship", "Heavenly Strike", "Shadow Clone"),
+        "BuildBoostSCPetGG": ("Shadow Clone", "Pet", "Gold Gun"),
         "PetDamage": ("Pet",), "PetAttackQTEDamage": ("Pet",), "DualPetAmount": ("Pet",),
         "ClanShipDamage": ("Clan Ship",), "CannonDamage": ("Clan Ship",), "CannonDamagePerSeasonTitan": ("Clan Ship",),
         "UltraDaggerDamage": ("Dagger",), "StreamOfBladesSkillAmount": ("Dagger",), "GoldGunDamage": ("Gold Gun",),
         "ShadowCloneSkillAmount": ("Shadow Clone",), "BurstDamageSkillAmount": ("Heavenly Strike",),
         "TwilightBoost": ("Shadow Clone", "Heavenly Strike"), "TwilightBoostPerSeasonFairy": ("Shadow Clone", "Heavenly Strike"),
         "CompanionDamage": ("Pet", "Clan Ship", "Shadow Clone"), "BuildBoostHSDGGG": ("Heavenly Strike", "Dagger", "Gold Gun"),
+        "DeadlyDamageCompanion": ("Pet", "Clan Ship", "Shadow Clone"),
         "BuildBoostDGPetCS": ("Dagger", "Pet", "Clan Ship"), "SwordAttackDamage": ("Heavenly Strike", "Dagger", "Gold Gun"),
     }
     if bonus in targets:
@@ -359,31 +363,110 @@ def bonus_weight(bonus, settings):
     return None
 
 
-def rank_items(player, settings, kind="artifacts"):
-    """Relative marginal priorities, NOT exact purchase prices or DPS predictions.
+def log_sum(values):
+    """log10(sum(10**x)), including huge imported levels."""
+    values = list(values)
+    if not values:
+        return 0.0
+    largest = max(values)
+    return largest + math.log10(sum(10 ** (v - largest) for v in values))
 
-    Uses asymptotic elasticity GrowthExpo/level and cost C*level**P.
-    Conditional monument factors are held constant; capped, inactive, unknown and
-    unmodeled effects stay visible but cannot silently get an invented score.
+
+def item_effect_gain(item, level, enchanted=False):
+    """Log10 of the next-rank log10 multiplier gain for 1 + c*L**g.
+
+    Finite differences at ordinary levels; a stable local derivative beyond
+    1e12, where adding one in binary floats cannot resolve the effect ratio.
+    EnchantmentMult scales c once; discovery/enchanting costs are not upgrades.
     """
+    ln_level = float(level.log10())
+    g = float(item["GrowthExpo"])
+    c = float(item["EffectPerLevel"])
+    if c <= 0 or g <= 0:
+        return None
+    magnitude = log(c) + g * ln_level
+    if enchanted:
+        magnitude += log(item["EnchantmentMult"])
+    # fraction of total effect contributed by the scalable term, in log space.
+    log_fraction = -math.log10(1 + 10 ** -magnitude) if magnitude >= 0 else magnitude - math.log10(1 + 10 ** magnitude)
+    if ln_level > 12:
+        return log(g / math.log(10)) + log_fraction - ln_level
+    delta = g * math.log1p(1 / float(level))
+    # Stable finite log-ratio, even when the effect itself exceeds float range.
+    fraction = 10 ** log_fraction
+    if delta > 600:
+        gain = (log_fraction * math.log(10) + delta) / math.log(10)
+    else:
+        gain = math.log1p(fraction * math.expm1(delta)) / math.log(10)
+    return log(gain) if gain > 0 else None
+
+
+def scientific_from_log(value):
+    exponent = math.floor(value)
+    return f"{10 ** (value - exponent):.3f}e{exponent:+d}"
+
+
+def rank_items(player, settings, kind="artifacts"):
+    """Finite next-level gains per modeled cost, not a full spending plan.
+
+    1+c*L**g effect and C*L**p cost model. Monument growth and cost use their
+    own CSV parameters. Conditional factors remain fixed. Includes additive
+    collection damage; unknown secondary effects are never invented.
+    """
+    if kind not in {"artifacts", "monuments"}:
+        raise ValueError("Unsupported collection.")
     owned = player.artifacts if kind == "artifacts" else player.monuments
+    balance = player.relics if kind == "artifacts" else player.mementos
+    # Every owned item adds damage to its collection, including off-build items.
+    # Seasonal collection damage has its own exponent in the snapshot.
+    contributions = {}
+    for key, level in owned.items():
+        item = catalog()[kind].get(key)
+        if item and level > 0 and (kind == "artifacts" or item["IsActive"] == "TRUE"):
+            if float(item["DamageBonus"]) > 0:
+                exponent = float(item.get("DamageExpo", 1))
+                contributions[key] = log(item["DamageBonus"]) + exponent * float(level.log10())
+    total_damage = log_sum([0.0, *contributions.values()])
     rows = []
     for key, level in owned.items():
         item = catalog()[kind].get(key)
         row = {"ID": key, "Name": item["Name"] if item else key, "Level": str(level), "Effect": item["BonusType"] if item else "Unknown",
-               "Status": "Unknown ID", "Priority": None, "log_efficiency": None}
+               "Status": "Unknown ID", "Priority": None, "log_efficiency": None,
+               "Next cost (estimate)": None, "Affordable": None, "Gain log10 (estimate)": None,
+               "Enchanted": key in (player.enchanted if kind == "artifacts" else player.monument_enchanted)}
         if item:
             active = kind != "monuments" or item["IsActive"] == "TRUE"
             cap = int(item["MaxLevel"])
             weight = bonus_weight(item["BonusType"], settings)
-            row["Status"] = "Not owned" if not level else "Inactive in snapshot" if not active else "Maxed" if cap and level >= cap else "Farming / BoS" if key == "Artifact22" else "Effect not modeled" if weight is None else "Other build / gold source" if weight == 0 else "Ranked (approximate)"
-            if row["Status"] == "Ranked (approximate)":
-                # Decimal log keeps e1000+ levels usable without converting to float.
+            row["Status"] = "Not owned" if not level else "Inactive in snapshot" if not active else "Maxed" if cap and level >= cap else "Farming / BoS" if key == "Artifact22" else "Effect not modeled; collection damage only" if weight is None else "Other build; collection damage only" if weight == 0 else "Ranked (estimate)"
+            if level and active and not (cap and level >= cap) and key != "Artifact22":
                 ln_level = float(level.log10())
-                growth = max(float(item["GrowthExpo"]), .000001)
-                row["log_efficiency"] = log(weight * growth / math.log(10)) - log(item["CostCoef"]) - (float(item["CostExpo"]) + 1) * ln_level
+                gains = []
+                effect_gain = item_effect_gain(item, level, row["Enchanted"])
+                if weight is not None and weight > 0 and effect_gain is not None:
+                    gains.append(log(weight) + effect_gain)
+                if key in contributions:
+                    exponent = float(item.get("DamageExpo", 1))
+                    share = contributions[key] - total_damage
+                    if ln_level > 12:
+                        gains.append(log(exponent / math.log(10)) + share - ln_level)
+                    else:
+                        delta = exponent * math.log1p(1 / float(level))
+                        gain = math.log1p(10 ** share * math.expm1(delta)) / math.log(10)
+                        if gain > 0:
+                            gains.append(log(gain))
+                cost = log(item["CostCoef"]) + float(item["CostExpo"]) * ln_level
+                row["Next cost (estimate)"] = scientific_from_log(cost)
+                row["Affordable"] = None if balance is None else balance > 0 and cost <= float(balance.log10())
+                if gains:
+                    combined = log_sum(gains)
+                    row["Gain log10 (estimate)"] = scientific_from_log(combined)
+                    row["log_efficiency"] = combined - cost
         rows.append(row)
     rows.sort(key=lambda r: (r["log_efficiency"] is None, -(r["log_efficiency"] or 0), r["Name"]))
     for index, row in enumerate((r for r in rows if r["log_efficiency"] is not None), 1):
         row["Priority"] = index
+    best = next((r["log_efficiency"] for r in rows if r["Priority"] == 1), None)
+    for row in rows:
+        row["Relative efficiency %"] = None if row["log_efficiency"] is None else round(100 * 10 ** (row["log_efficiency"] - best), 2)
     return rows

@@ -71,6 +71,7 @@ class Player:
     stats: dict = field(default_factory=dict)
     skills_known: bool = True
     source: str = "JSON"
+    monument_enchanted: set = field(default_factory=set)
 
     @property
     def spent_sp(self):
@@ -127,12 +128,17 @@ def parse_player(payload, source="JSON"):
         if v > data["skills"][k]["max"]:
             raise ImportError(f"{data['skills'][k]['Name']} exceeds this snapshot's level cap. Update the game tables.")
     artifacts, enchanted = levels(first(payload, "artifacts", "Artifacts"), "artifact_id", "Artifacts")
-    monuments, _ = levels(first(payload, "seasonal_artifacts", "seasonalArtifacts", "monuments"), "artifact_id", "Monuments")
+    monuments, monument_enchanted = levels(first(payload, "seasonal_artifacts", "seasonalArtifacts", "monuments"), "artifact_id", "Monuments")
     for collection, kind in ((artifacts, "artifacts"), (monuments, "monuments")):
         name_map = {s["Name"]: k for k, s in data[kind].items()}
         for k in list(collection):
             if k in name_map:
-                collection[name_map[k]] = collection.pop(k)
+                target = name_map[k]
+                collection[target] = collection.pop(k)
+                enchanted_ids = enchanted if kind == "artifacts" else monument_enchanted
+                if k in enchanted_ids:
+                    enchanted_ids.remove(k)
+                    enchanted_ids.add(target)
         missing = [k for k in collection if k not in data[kind]]
         if missing:
             warnings.append(f"Unknown {kind} retained without recommendations: {', '.join(missing)}.")
@@ -164,6 +170,7 @@ def parse_player(payload, source="JSON"):
         mementos=balance(("mementos", "available_mementos"), "seasonal_relics_received", "seasonal_relics_spent", "Mementos"),
         version=str(first(payload, "version", "Version", default=stats.get("Game Version", ""))),
         warnings=warnings, stats=stats, skills_known=raw_skills is not None, source=source,
+        monument_enchanted=monument_enchanted,
     )
     if player.spent_sp > player.total_sp:
         raise ImportError(f"Allocated skills cost {player.spent_sp:,} SP but the export reports {player.total_sp:,} total. Check the export and data version.")

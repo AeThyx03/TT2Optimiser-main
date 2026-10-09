@@ -1,6 +1,6 @@
 # TT2 Player Optimizer sources
 
-The existing Alchemy application retains its original license and behavior.
+The alchemy application has been retired from this player-only interface.
 
 ## rawrzcookie.github.io
 
@@ -48,9 +48,30 @@ No provider source code is copied into this application.
   attempt count. Extra spell-level effects assume base spell caps of 30, or 35
   with The Fallen Angel. It does not model mana sustain, prestige speed, every
   artifact/monument interaction, or in-game timing.
-- Artifact/monument priorities use the explicit asymptotic model documented in
-  the UI. They are not exact purchase costs, a spending plan, or damage predictions.
-  Unmodeled effects and unknown IDs are kept visible without invented rankings.
+- Artifact/monument priorities use finite next-level ratios for the modeled
+  1 + coefficient × level^growth effect, plus additive collection damage. Estimated
+  cost uses coefficient × level^cost exponent. Large levels use log-space
+  derivatives. Imported enchantment multipliers scale the primary effect once.
+  Unmodeled primary effects can rank only for their known collection damage.
+  Prices, conditional counters and monument behavior remain estimates, not
+  verified live-game spending plans. The ambiguous L40 column is not used.
 - Seasonal activity comes from EndgameSeasonArtifactInfo.csv; the `_1` table is
   retained as an upstream alternate snapshot, but is not silently substituted.
 - Player data and tokens are never required for offline JSON calculations.
+
+## Artifact formula reference
+
+The finite effect/cost model and additive artifact damage were checked against
+TT2Master public source (Apache-2.0), without copying its implementation:
+https://github.com/nebula2/tt2-master/blob/main/src/TT2Master/Model/Arti/ArtifactOptimization.cs
+and https://github.com/nebula2/tt2-master/blob/main/src/TT2Master.Shared/Models/Artifact.cs.
+Monument table parameters are used as an estimate; the older artifact reference
+does not verify current monument formulas.
+
+## Collection artwork
+
+85 artifact PNGs were retrieved from TT2Master Android drawable resources at
+commit 3837595d662f542b5d8b5b81320eed21fb1a9d9b:
+https://github.com/nebula2/tt2-master/tree/3837595d662f542b5d8b5b81320eed21fb1a9d9b/src/TT2Master.Android/Resources/drawable
+Game artwork belongs to Game Hive. Missing icons are explicitly labeled as
+unavailable; substitute artwork is not presented as the original item image.
