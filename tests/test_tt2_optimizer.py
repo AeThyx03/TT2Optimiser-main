@@ -183,6 +183,32 @@ class SkillTests(unittest.TestCase):
 
 
 class ItemTests(unittest.TestCase):
+    def test_rosabella_identity_and_heavenly_strike_relevance(self):
+        monuments = catalog()["monuments"]
+        self.assertEqual(monuments["SeasonalArtifact33"]["Name"], "Rosabella's Village")
+        self.assertEqual(monuments["SeasonalArtifact33"]["BonusType"], "DeadlyDamageCompanion")
+        self.assertEqual(monuments["SeasonalArtifact6"]["Name"], "Mound of Brothers' Meet")
+        for identifier in ("Rosabella's Village", "SeasonalArtifact33"):
+            with self.subTest(identifier=identifier):
+                p = parse_player(api_player(monuments={identifier: 93000, "SeasonalArtifact43": 93000}))
+                self.assertIn("SeasonalArtifact33", p.monuments)
+                rows = rank_items(p, Settings(build="Heavenly Strike"), "monuments")
+                rosabella = next(r for r in rows if r["ID"] == "SeasonalArtifact33")
+                self.assertEqual(rosabella["Primary gain log10 (estimate)"], "0")
+                self.assertEqual(rosabella["Gain log10 (estimate)"], rosabella["Collection gain log10 (estimate)"])
+                self.assertIn("Other build", rosabella["Status"])
+                self.assertEqual(rows[0]["ID"], "SeasonalArtifact43")
+                self.assertEqual(rows[0]["Priority"], 1)
+
+    def test_companion_deadly_damage_build_matrix(self):
+        p = parse_player(api_player(monuments={"SeasonalArtifact33": 93000}))
+        for build in BUILDS:
+            with self.subTest(build=build):
+                expected = build in {"Pet", "Clan Ship", "Shadow Clone"}
+                self.assertEqual(bonus_weight("DeadlyDamageCompanion", Settings(build=build)), float(expected))
+                row = rank_items(p, Settings(build=build), "monuments")[0]
+                self.assertEqual(row["Primary gain log10 (estimate)"] == "0", not expected)
+
     def test_finite_effect_gain_and_enchantment(self):
         item = {"EffectPerLevel": ".5", "GrowthExpo": "2", "EnchantmentMult": "100"}
         expected = math.log10((1 + .5 * 11**2) / (1 + .5 * 10**2))

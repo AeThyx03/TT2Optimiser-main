@@ -45,11 +45,15 @@ def collection_card(row, currency, featured=False):
     efficiency_text = f"{efficiency:g}% of best value" if efficiency is not None else "Unranked"
     reason = "Primary effect + collection damage" if row["Status"] == "Ranked (estimate)" else row["Status"]
     available = "Within current balance" if row["Affordable"] is True else "Save more first" if row["Affordable"] is False else "Balance not provided"
+    primary = row["Primary gain log10 (estimate)"]
+    primary_text = "Primary effect does not benefit this build / gold source" if primary == "0" else "Primary effect is not modeled" if primary is None else "Primary effect benefits this build / gold source"
     st.markdown(
         f'<article class="collection-card{ " featured" if featured else ""}">'
         f'<div class="item-art">{artwork}</div><div class="item-body">'
         f'<span class="item-badge">{html.escape(badge)}</span><h4>{name}</h4>'
         f'<div class="item-level">Level {html.escape(row["Level"])}{ " · Enchanted" if row["Enchanted"] else ""}</div>'
+        f'<div class="item-reason">{html.escape(row["Effect description"])}</div>'
+        f'<div class="item-reason">{primary_text}</div>'
         f'<div class="item-efficiency">{efficiency_text}</div>'
         f'<div class="item-meter"><span style="width:{efficiency or 0}%"></span></div>'
         f'<div class="item-cost">Next level ≈ {row["Next cost (estimate)"] or "—"} {currency}</div>'
@@ -85,12 +89,12 @@ def inventory(player, settings, kind):
                 st.caption(f"Your current balance cannot buy a ranked next level. Save more {currency}.")
     else:
         st.info("No upgrade can be ranked from this collection: check caps, season activity and supported effects.")
-    st.caption("Upgrade value = modeled next-level gain per currency spent. Different effects, costs and current levels lead to different priorities. These estimates include collection damage; conditional effects remain fixed.")
+    st.caption("Upgrade value = modeled next-level gain per currency spent. Primary effects use your selected build and gold source. Off-build items receive no primary-effect gain, but can still add shared collection damage. These are estimates; conditional effects remain fixed.")
     search = st.text_input(f"Search {kind}", key=f"search_{kind}", placeholder="Name, effect, or ID")
     only = st.checkbox("Show ranked upgrades only", key=f"ranked_{kind}")
     affordable = st.checkbox("Show affordable upgrades only", key=f"affordable_{kind}", disabled=(player.relics if kind == "artifacts" else player.mementos) is None)
     visible = [r for r in rows if (not only or r["Priority"] is not None) and (not affordable or r["Affordable"] is True) and search.lower() in (r["Name"] + r["Effect"] + r["ID"]).lower()]
-    display = [{field: r[field] for field in ("Priority", "Name", "Level", "Relative efficiency %", "Next cost (estimate)", "Affordable", "Gain log10 (estimate)", "Enchanted", "Status", "Effect", "ID")} for r in visible]
+    display = [{field: r[field] for field in ("Priority", "Name", "Level", "Relative efficiency %", "Next cost (estimate)", "Affordable", "Gain log10 (estimate)", "Primary gain log10 (estimate)", "Collection gain log10 (estimate)", "Enchanted", "Status", "Effect", "ID")} for r in visible]
     if not visible:
         st.info("No items match these filters.")
     for start in range(0, len(visible), 2):

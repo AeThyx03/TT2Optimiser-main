@@ -7,6 +7,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PlayerUITests(unittest.TestCase):
+    def test_rosabella_heavenly_strike_card(self):
+        app = self.app()
+        app.text_area(key="json_input").input('{"total_skill_points":500,"monuments":{"Rosabella\'s Village":93000,"SeasonalArtifact43":93000}}').run()
+        self.click(app, "Import player")
+        next(s for s in app.selectbox if s.label == "Damage type").select("Heavenly Strike").run()
+        self.assertFalse(app.exception)
+        cards = [x.value for x in app.markdown if "collection-card" in x.value]
+        rosabella = next(x for x in cards if "Rosabella" in x)
+        self.assertNotIn("Upgrade first", rosabella)
+        self.assertIn("Primary effect does not benefit this build", rosabella)
+        self.assertIn("companions", rosabella)
+
     def test_collection_priorities_and_filters(self):
         app = self.app()
         app.text_area(key="json_input").input((ROOT / "examples/player-demo.json").read_text()).run()

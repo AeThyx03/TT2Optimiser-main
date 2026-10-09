@@ -57,6 +57,11 @@ No provider source code is copied into this application.
   verified live-game spending plans. The ambiguous L40 column is not used.
 - Seasonal activity comes from EndgameSeasonArtifactInfo.csv; the `_1` table is
   retained as an upstream alternate snapshot, but is not silently substituted.
+- The current upstream table transposes the display names of IDs 6 and 33.
+  Catalog names are corrected to Mound of Brothers' Meet (6) and Rosabella's
+  Village (33), matching the alternate snapshot's ID/name mapping and the
+  supplied in-game screenshot showing Rosabella's companion deadly damage.
+  IDs, effect types, growth parameters, costs and activity are unchanged.
 - Player data and tokens are never required for offline JSON calculations.
 
 ## Artifact formula reference

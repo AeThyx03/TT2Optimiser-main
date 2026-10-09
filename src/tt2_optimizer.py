@@ -433,6 +433,8 @@ def rank_items(player, settings, kind="artifacts"):
         row = {"ID": key, "Name": item["Name"] if item else key, "Level": str(level), "Effect": item["BonusType"] if item else "Unknown",
                "Status": "Unknown ID", "Priority": None, "log_efficiency": None,
                "Next cost (estimate)": None, "Affordable": None, "Gain log10 (estimate)": None,
+               "Primary gain log10 (estimate)": None, "Collection gain log10 (estimate)": None,
+               "Effect description": catalog()["bonuses"].get(item["BonusType"] if item else "", {}).get("Description", "Unknown effect"),
                "Enchanted": key in (player.enchanted if kind == "artifacts" else player.monument_enchanted)}
         if item:
             active = kind != "monuments" or item["IsActive"] == "TRUE"
@@ -443,18 +445,25 @@ def rank_items(player, settings, kind="artifacts"):
                 ln_level = float(level.log10())
                 gains = []
                 effect_gain = item_effect_gain(item, level, row["Enchanted"])
+                if weight is not None:
+                    row["Primary gain log10 (estimate)"] = "0"
                 if weight is not None and weight > 0 and effect_gain is not None:
-                    gains.append(log(weight) + effect_gain)
+                    primary_gain = log(weight) + effect_gain
+                    gains.append(primary_gain)
+                    row["Primary gain log10 (estimate)"] = scientific_from_log(primary_gain)
                 if key in contributions:
                     exponent = float(item.get("DamageExpo", 1))
                     share = contributions[key] - total_damage
                     if ln_level > 12:
-                        gains.append(log(exponent / math.log(10)) + share - ln_level)
+                        collection_gain = log(exponent / math.log(10)) + share - ln_level
+                        gains.append(collection_gain)
+                        row["Collection gain log10 (estimate)"] = scientific_from_log(collection_gain)
                     else:
                         delta = exponent * math.log1p(1 / float(level))
                         gain = math.log1p(10 ** share * math.expm1(delta)) / math.log(10)
                         if gain > 0:
                             gains.append(log(gain))
+                            row["Collection gain log10 (estimate)"] = scientific_from_log(log(gain))
                 cost = log(item["CostCoef"]) + float(item["CostExpo"]) * ln_level
                 row["Next cost (estimate)"] = scientific_from_log(cost)
                 row["Affordable"] = None if balance is None else balance > 0 and cost <= float(balance.log10())

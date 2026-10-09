@@ -23,10 +23,18 @@ def catalog():
         s["costs"] = [0]
         for level in range(s["max"]):
             s["costs"].append(s["costs"][-1] + int(s[f"Co{level}"]))
+    monuments = {r["ArtifactID"]: r for r in table("EndgameSeasonArtifactInfo.csv")}
+    # The current upstream CSV transposes these two display names. Its IDs and
+    # effect parameters stay intact. The alternate snapshot's ID/name mapping
+    # and the supplied in-game Rosabella screenshot agree on companion deadly
+    # damage (SeasonalArtifact33), rather than inspired hero damage (ID 6).
+    monuments["SeasonalArtifact6"]["Name"] = "Mound of Brothers' Meet"
+    monuments["SeasonalArtifact33"]["Name"] = "Rosabella's Village"
     return {
         "skills": skills,
         "artifacts": {r["ArtifactID"]: r for r in table("ArtifactInfo.csv")},
-        "monuments": {r["ArtifactID"]: r for r in table("EndgameSeasonArtifactInfo.csv")},
+        "monuments": monuments,
+        "bonuses": {r["BonusType"]: r for r in table("BonusInfo.csv")},
         "reductions": json.loads((DATA / "reductions.json").read_text()),
         "spells": json.loads((DATA / "spells.json").read_text()),
         "spell_reductions": json.loads((DATA / "spell_reductions.json").read_text()),
