@@ -137,7 +137,8 @@ def render():
       [data-testid="stDataFrame"] {border:1px solid #ffffff1c;border-radius:8px;overflow:hidden;}
     </style>""", unsafe_allow_html=True)
     theme = Path(__file__).resolve().parents[1] / "static" / "player-ui.css"
-    st.markdown(f"<style>:root {{ --tt2-background: url('{background_image()}'); }}{theme.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+    css = theme.read_text(encoding="utf-8").replace("var(--tt2-background)", f"url('{background_image()}')")
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
     data = catalog()
     st.markdown('<div class="eyebrow">TAP TITANS 2</div>', unsafe_allow_html=True)
     st.title("Player optimizer")

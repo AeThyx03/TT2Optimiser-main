@@ -1,6 +1,6 @@
 /* User-supplied TT2 artwork, embedded from the bundled image. */
 /* Static atmosphere and short, compositor-friendly interaction feedback. */
-[data-testid="stAppViewContainer"] {
+[data-testid="stApp"] {
   background-color: #0c1221;
   background-image:
     linear-gradient(180deg, #0c12218c 0%, #0c1221b8 35%, #0c1221eb 100%),
@@ -8,7 +8,10 @@
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
+  background-attachment: fixed;
 }
+[data-testid="stAppViewContainer"], [data-testid="stMain"],
+[data-testid="stMainBlockContainer"] {background: transparent !important;}
 [data-testid="stHeader"] {background: #0c1221ee;}
 .block-container {padding-top: 2.5rem;}
 h1 {font-weight: 800; color: #f2f5ff;}
