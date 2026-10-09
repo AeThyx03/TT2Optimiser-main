@@ -1,12 +1,13 @@
+/* Official TT2 artwork: https://gamehive.com/games/tap-titans-2/ */
 /* Static atmosphere and short, compositor-friendly interaction feedback. */
 [data-testid="stAppViewContainer"] {
   background-color: #0c1221;
   background-image:
-    radial-gradient(ellipse at 8% 0%, #5360b833, transparent 48%),
-    radial-gradient(ellipse at 100% 28%, #259d9a19, transparent 46%),
-    linear-gradient(135deg, transparent 49.8%, #9aaaf905 50%, transparent 50.2%),
-    linear-gradient(180deg, #11192d, #0c1221);
-  background-size: auto, auto, 72px 72px, auto;
+    linear-gradient(180deg, #0c12218c 0%, #0c1221b8 35%, #0c1221eb 100%),
+    url("https://gamehive.com/_astro/banner.D90I2RS7.jpg");
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
 }
 [data-testid="stHeader"] {background: #0c1221ee;}
 .block-container {padding-top: 2.5rem;}
