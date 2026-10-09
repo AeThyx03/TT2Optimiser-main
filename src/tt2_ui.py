@@ -69,10 +69,10 @@ def inventory(player, settings, kind):
     currency = "relics" if kind == "artifacts" else "mementos"
     ranked = [r for r in rows if r["Priority"] is not None]
     if kind == "monuments":
-        st.caption("Estimated lifetime allocation · 100% total")
+        st.caption("Estimated lifetime allocation · Includes All Monument Damage · 100% total")
         with st.expander("How to reach your lifetime targets"):
             st.markdown("Compare each target with **% of lifetime Mementos** in the game's Monument Info. A 20% target means roughly one fifth of your lifetime investment should go to that monument. Add investment to monuments below their targets as you earn more mementos; a 0% target means no additional investment for this build. Your existing investment cannot be reduced by upgrading.")
-            st.caption("Estimates use effect and cumulative cost growth; discovery, enchantment, capped-item spending and shared collection damage are excluded. Current lifetime shares and exact target levels are unavailable in this export. Available mementos are separate from lifetime investment.")
+            st.caption("Targets balance primary effects with a dominant All Monument Damage contributor at your imported progression. Relative cost scaling and the shared-damage curve are estimated; discovery, enchantment and capped-item spending are excluded. These are targets for the scalable investment pool, not verified exact lifetime percentages. Current lifetime shares and absolute upgrade costs are unavailable in this export. Re-import after progressing to refresh the targets.")
         if any(r["Status"] == "Effect needs compatible season data" for r in rows):
             st.info("Some effects need compatible season data before they can be ranked.")
     if ranked:

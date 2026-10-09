@@ -395,9 +395,34 @@ class ItemTests(unittest.TestCase):
         self.assertNotIn("SeasonalArtifact6", p.monument_enchanted)
         self.assertEqual(len(rows), 33)
         self.assertTrue(all(r["Status"] != "Inactive in snapshot" for r in rows))
-        self.assertEqual(rows[0]["ID"], "SeasonalArtifact51")
+        self.assertEqual(rows[0]["ID"], "SeasonalArtifact43")
         damage_only = rank_items(p, Settings(build="Heavenly Strike", gold_weight=0), "monuments")
         self.assertEqual(damage_only[0]["ID"], "SeasonalArtifact43")
+
+    def test_shared_damage_concentration_and_finite_upgrade(self):
+        p = parse_player((Path(__file__).parent / "fixtures/monument-player.json").read_text())
+        settings = Settings(build="Heavenly Strike")
+        targets = monument_lifetime_targets(p, settings)
+        self.assertGreater(targets["SeasonalArtifact43"], 80)
+        self.assertLess(targets["SeasonalArtifact43"], 100)
+        self.assertAlmostEqual(sum(v for v in targets.values() if v is not None), 100)
+        top = rank_items(p, settings, "monuments")[0]
+        level = float(p.monuments["SeasonalArtifact43"])
+        expected = 14 * ((level + 1) ** .53 - level ** .53)
+        self.assertAlmostEqual(float(top["Collection gain log10 (estimate)"]), expected, places=5)
+        # At lower progression primary effects matter more: do not hard-code
+        # an 80% or 85% rule independent of the player's levels.
+        p.monuments = {k: v / 100 if v > 40 else v for k, v in p.monuments.items()}
+        lower = monument_lifetime_targets(p, settings)
+        self.assertLess(lower["SeasonalArtifact43"], targets["SeasonalArtifact43"])
+
+    def test_shared_damage_curve_matches_supplied_screenshots(self):
+        # Display is percentage, hence +2. K-rounded levels allow a small
+        # exponent discrepancy; these independent observations reject L^p.
+        for level, base, exponent, displayed in ((40, 20, .55, 154.11),
+                                                  (32030, 14, .53, 3422.428),
+                                                  (77580, 14, .53, 5468.362)):
+            self.assertAlmostEqual(2 + base * level ** exponent, displayed, delta=.15)
 
     def test_alternate_growth_matches_screenshot_magnitudes(self):
         # Check independent displayed magnitudes; level rounding and global

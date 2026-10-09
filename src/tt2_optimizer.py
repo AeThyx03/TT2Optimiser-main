@@ -528,19 +528,19 @@ def default_spells(build):
 
 
 def monument_lifetime_targets(player, settings):
-    """Estimated long-run investment shares, not next-level efficiencies.
+    """Estimated investment mix including a dominant shared-damage monument.
 
-    At high levels, primary power is proportional to L**(weight*growth),
-    while cumulative upgrade spend is proportional to L**(cost_exponent+1).
-    Maximizing weighted log power under a total investment budget therefore
-    allocates spend in proportion to weight*growth/(cost_exponent+1).
-    Unknown cost scales cancel from this asymptotic share calculation. Discovery,
-    enchantment, capped-item spending and existing sunk costs are excluded;
-    these are targets for the scalable investment pool, not measured game shares.
+    Reconstruct a relative investment budget from imported levels. Enumerate
+    each eligible monument as the shared-damage leader, optimize its share,
+    and distribute the remainder by primary-effect marginal power. At these
+    levels log(sum(shared damage)) is effectively its largest term. This is
+    a concentration estimate, not a redistribution of existing sunk costs.
     """
     scores = {}
+    investment_logs = []
+    items = catalog()["monuments"]
     for key, level in player.monuments.items():
-        item = catalog()["monuments"].get(key)
+        item = items.get(key)
         if not item or not level or item["IsActive"] != "TRUE":
             continue
         # A capped monument cannot absorb long-run investment.
@@ -549,14 +549,50 @@ def monument_lifetime_targets(player, settings):
         weight = monument_weight(item, settings, player)
         growth = float(item["GrowthExpo"])
         cost_power = float(item["CostExpo"]) + 1
+        if cost_power > 0 and float(item.get("CostCoef", 1)) > 0:
+            investment_logs.append(log(item.get("CostCoef", 1)) - log(cost_power) + cost_power * float(level.log10()))
         if weight is not None and weight > 0 and growth > 0 and cost_power > 0 and float(item["EffectPerLevel"]) > 0:
             scores[key] = weight * growth / cost_power
     targets = {key: None for key in player.monuments}
     if not scores:
         return targets
-    # Largest-remainder rounding keeps displayed targets at exactly 100.00%.
     total = sum(scores.values())
-    exact = {key: 10000 * score / total for key, score in scores.items()}
+    shares = {key: score / total for key, score in scores.items()}
+    budget_log = log_sum(investment_logs) if investment_logs else 0
+    best_value = -math.inf
+    for pump in scores:
+        item = items[pump]
+        damage_base = float(item.get("DamageBonus", 0))
+        damage_exponent = float(item.get("DamageExpo", 0))
+        power = float(item["CostExpo"]) + 1
+        r = damage_exponent / power
+        if damage_base <= 1 or not 0 < r < 1:
+            continue
+        level_log = (budget_log + log(power) - log(item.get("CostCoef", 1))) / power
+        # Avoid pretending to resolve an unsupported extreme-level season.
+        if damage_exponent * level_log > 300:
+            return targets
+        damage = math.log10(damage_base) * 10 ** (damage_exponent * level_log)
+        own = scores[pump] / math.log(10)
+        rest = (total - scores[pump]) / math.log(10)
+        if rest <= 0:
+            candidate = {pump: 1.0}
+        else:
+            lo, hi = 1e-12, 1 - 1e-12
+            for _ in range(80):
+                fraction = (lo + hi) / 2
+                derivative = damage * r * fraction ** (r - 1) + own / fraction - rest / (1 - fraction)
+                if derivative > 0:
+                    lo = fraction
+                else:
+                    hi = fraction
+            fraction = (lo + hi) / 2
+            candidate = {k: fraction if k == pump else (1 - fraction) * v / (total - scores[pump]) for k, v in scores.items()}
+        value = damage * candidate[pump] ** r + sum(scores[k] * math.log10(v) for k, v in candidate.items())
+        if value > best_value:
+            best_value, shares = value, candidate
+    # Largest-remainder rounding keeps displayed targets at exactly 100.00%.
+    exact = {key: 10000 * share for key, share in shares.items()}
     units = {key: math.floor(value) for key, value in exact.items()}
     remainder = 10000 - sum(units.values())
     order = sorted(exact, key=lambda key: (-(exact[key] - units[key]), key))
@@ -574,8 +610,8 @@ def rank_items(player, settings, kind="artifacts"):
 
     1+c*L**g effect and C*L**p cost model. Monument growth and cost use their
     own CSV parameters. Conditional factors remain fixed. Includes additive
-    artifact collection damage; monument priorities require a relevant modeled
-    primary effect. The unverified All Monument Damage curve is not scored.
+    artifact collection damage; monument priorities include level-exponential
+    shared damage and require a relevant modeled primary effect.
     """
     if kind not in {"artifacts", "monuments"}:
         raise ValueError("Unsupported collection.")
@@ -590,6 +626,10 @@ def rank_items(player, settings, kind="artifacts"):
             if float(item["DamageBonus"]) > 0:
                 exponent = float(item.get("DamageExpo", 1))
                 contributions[key] = log(item["DamageBonus"]) + exponent * float(level.log10())
+        elif kind == "monuments" and item and level > 0 and item["IsActive"] == "TRUE":
+            exponent = float(item.get("DamageExpo", 0))
+            if float(item["DamageBonus"]) > 1 and exponent * float(level.log10()) < 300:
+                contributions[key] = log(item["DamageBonus"]) * 10 ** (exponent * float(level.log10()))
     total_damage = log_sum([0.0, *contributions.values()])
     rows = []
     for key, level in owned.items():
@@ -623,7 +663,19 @@ def rank_items(player, settings, kind="artifacts"):
                     primary_gain = log(weight) + effect_gain
                     gains.append(primary_gain)
                     row["Primary gain log10 (estimate)"] = scientific_from_log(primary_gain)
-                if key in contributions:
+                if key in contributions and kind == "monuments" and weight is not None and weight > 0:
+                    exponent = float(item["DamageExpo"])
+                    # D(L) = DamageBonus ** (L ** DamageExpo). The game's
+                    # percentage display adds 2 to log10; that common factor
+                    # cancels from ratios. Use an exact log-space finite step.
+                    delta_log = contributions[key] * math.expm1(exponent * math.log1p(1 / float(level)))
+                    updated = dict(contributions)
+                    updated[key] += delta_log
+                    collection_gain = log_sum([0.0, *updated.values()]) - total_damage
+                    if collection_gain > 0:
+                        gains.append(log(collection_gain))
+                        row["Collection gain log10 (estimate)"] = scientific_from_log(log(collection_gain))
+                elif key in contributions and kind == "artifacts":
                     exponent = float(item.get("DamageExpo", 1))
                     share = contributions[key] - total_damage
                     if ln_level > 12:
