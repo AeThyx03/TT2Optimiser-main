@@ -1,4 +1,4 @@
-# TT2 Player Optimizer
+# Titan Forge · TT2 Player Optimizer
 
 Paste your in-game player JSON to plan skill points and review artifact and monument priorities.
 
@@ -7,9 +7,11 @@ python -m pip install -r requirements.txt
 python -m streamlit run streamlit_app.py --server.address 127.0.0.1
 ```
 
-In Tap Titans 2, open Settings → Services → Export. Paste the complete JSON and select Import player. Player data stays in the current session.
+In Tap Titans 2, open Settings → Services → Export. Open the sidebar, paste the complete JSON, and select Import player. Player data stays in the current session.
 
-Choose a damage type and gold source, then plan a full respec or spend available points. Optimized ranks appear in a compact six-tree grid. Copy the build JSON back into the game.
+Choose your goal, damage type, and gold source in the loadout sidebar. Use the Skill workshop to plan a full respec or spend available points. The default Skill tree view follows the game’s six class tabs, node positions, prerequisite connections, icons, and optimized level numbers. Select a node for current/planned levels and SP changes. The optional allocation ledger shows named skills and points by discipline; filter by discipline or changed skills. Copy the build JSON back into the game.
+
+The Relic armory and Season atlas show compact upgrade rows, searchable priorities, and estimated lifetime memento targets. Model explanations and comparison exports are available in expandable panels.
 
 Choose a skill **Optimization goal**:
 

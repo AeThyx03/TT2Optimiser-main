@@ -16,7 +16,7 @@ from src.tt2_player import ImportError, parse_player
 
 @lru_cache(maxsize=128)
 def skill_icon(key):
-    """Embed bundled icons so deployment paths cannot break the skill grid."""
+    """Embed bundled skill icons independently of deployment paths."""
     path = Path(__file__).resolve().parents[1] / "static" / "skill-icons" / f"{key}.png"
     return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
@@ -49,7 +49,7 @@ def collection_card(row, currency, featured=False):
         f'{artwork}<div class="item-body">'
         f'<span class="item-badge">{html.escape(badge)}</span><h4>{name}</h4>'
         f'<div class="item-level">Level {html.escape(row["Level"])}{ " · Enchanted" if row["Enchanted"] else ""}</div>'
-        f'<div class="item-efficiency">{value_text}</div>'
+        f'</div><div class="item-value"><div class="item-efficiency">{value_text}</div>'
         f'<div class="item-meter"><span style="width:{percentage or 0}%"></span></div>'
         f'{cost_text}</div></article>', unsafe_allow_html=True,
     )
@@ -104,124 +104,111 @@ def inventory(player, settings, kind):
         st.info("No items match these filters.")
     # The featured recommendation is already visible above the collection.
     card_rows = [r for r in visible if not ranked or r["ID"] != ranked[0]["ID"]]
-    for start in range(0, len(card_rows), 2):
-        columns = st.columns(2)
-        for col, row in zip(columns, card_rows[start:start + 2]):
-            with col:
-                collection_card(row, currency)
+    for row in card_rows:
+        collection_card(row, currency)
     with st.expander("Compare upgrade numbers"):
         st.dataframe(pd.DataFrame(display), hide_index=True, width="stretch")
         st.download_button(f"Download {kind} priorities", pd.DataFrame(display).to_csv(index=False), f"tt2-{kind}.csv", "text/csv", key=f"download_{kind}")
 
 
 def render_skill_tree(levels, current_levels):
-    """Render the planned allocation in a compact, color-coded TT2 tree layout."""
-    classes = [
-        ("Knight", "Knight", "K", "#a6a4a2"),
-        ("Pet", "Summoner", "Su", "#e56870"),
-        ("Warlord", "Warlord", "W", "#ffdc6a"),
-        ("Sorcerer", "Sorcerer", "So", "#77a5e9"),
-        ("Rogue", "Rogue", "R", "#92c47f"),
-        ("Alchemist", "Alchemist", "A", "#9984d0"),
-    ]
+    view = st.radio("Allocation view", ["Skill tree", "Allocation ledger"], horizontal=True, key="allocation_view")
+    if view == "Skill tree":
+        from src.tt2_tree_ui import skill_tree_document
+        components.html(skill_tree_document(levels, current_levels, st.session_state["tt2_player"].total_sp, skill_icon), height=920, scrolling=True)
+    else:
+        render_skill_ledger(levels, current_levels)
+
+
+def render_skill_ledger(levels, current_levels):
+    """A named allocation ledger, grouped by discipline, with visible changes."""
+    classes = [("Knight", "Knight", "#f1c58a"), ("Pet", "Summoner", "#ff8e93"),
+               ("Warlord", "Warlord", "#e8c95c"), ("Sorcerer", "Sorcerer", "#82bdff"),
+               ("Rogue", "Rogue", "#8ddbaf"), ("Alchemist", "Alchemist", "#bda4ff")]
     skills = catalog()["skills"]
-    st.markdown("""<style>
-      .skill-board {max-width:540px;margin:1rem auto;background:#131820;padding:8px;border:1px solid #45505e;border-radius:14px;overflow:hidden}
-      .skill-summary {background:#202731;color:#f5d685;text-align:center;padding:12px 3px;margin-bottom:8px;border-radius:8px;font:600 clamp(13px,3vw,18px) sans-serif;border-bottom:1px solid #46505c}
-      .skill-tree-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px}
-      .skill-class {min-width:0;--tree:#999}
-      .skill-class-head {display:grid;grid-template-columns:1fr 2fr;gap:2px;margin-bottom:2px;color:#111;font:500 clamp(13px,3vw,21px) sans-serif}
-      .skill-class-head span {background:var(--tree);text-align:center;padding:8px 0;border-radius:5px}
-      .skill-nodes {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;background:#17191c}
-      .skill-node {aspect-ratio:1;position:relative;background:var(--tree);border-radius:5px;overflow:hidden}
-      .skill-node img {width:100%;height:100%;object-fit:cover;display:block}
-      .skill-node.empty img {opacity:.25}
-      .skill-node-level {position:absolute;inset:0;display:grid;place-items:center;font:bold clamp(16px,4.6vw,29px) Arial,sans-serif;color:white;-webkit-text-stroke:1px #111;paint-order:stroke fill;text-shadow:2px 2px 1px #000,-2px -2px 1px #000,2px -2px 1px #000,-2px 2px 1px #000}
-    </style>""", unsafe_allow_html=True)
-    sp_by_class = {}
-    for key, level in levels.items():
-        skill = skills[key]
-        sp_by_class[skill["Class"]] = sp_by_class.get(skill["Class"], 0) + skill["costs"][level]
-    total_sp = sum(sp_by_class.values())
-    available = st.session_state["tt2_player"].total_sp
-    summary = f'{total_sp} / {available} ({available - total_sp} SP remaining)'
+    totals = {key: sum(skills[k]["costs"][int(v)] for k, v in levels.items()
+                       if skills[k]["Class"] == key) for key, _, _ in classes}
+    total = sum(totals.values())
+    segments = ''.join(f'<span style="width:{100 * totals[key] / max(total, 1):.4f}%;background:{color}" title="{label}: {totals[key]:,} SP"></span>' for key, label, color in classes)
+    legend = ''.join(f'<div><i style="background:{color}"></i>{label}<strong>{totals[key]:,}</strong></div>' for key, label, color in classes)
+    st.markdown(f'<div class="allocation-strip">{segments}</div><div class="allocation-legend">{legend}</div>', unsafe_allow_html=True)
+    discipline = st.selectbox("Skill discipline", ["All disciplines"] + [label for _, label, _ in classes], key="skill_discipline")
+    changes_only = st.checkbox("Show changed skills only", key="changed_skills")
     panels = []
-    for class_key, label, short, color in classes:
-        rows = sorted((s for s in skills.values() if s["Class"] == class_key), key=lambda s: int(s["Slot"]))
-        class_sp = sp_by_class.get(class_key, 0)
-        nodes = []
-        by_slot = {1 if int(skill["Slot"]) == 0 else int(skill["Slot"]) + 2: skill for skill in rows}
-        for slot in range(15):
-            skill = by_slot.get(slot)
-            if skill is None:
-                nodes.append('<div class="skill-node" aria-hidden="true"></div>')
+    for class_key, label, color in classes:
+        if discipline not in ("All disciplines", label):
+            continue
+        entries = []
+        for skill in sorted(skills.values(), key=lambda s: int(s["Slot"])):
+            if skill["Class"] != class_key:
                 continue
             key = skill["TalentID"]
-            level = int(levels.get(key, 0))
-            current = int(current_levels.get(key, 0))
-            name = html.escape(skill["Name"])
-            title = html.escape(f'{skill["Name"]} · current {current} → planned {level} · max {skill["max"]}')
-            rank = f'<span class="skill-node-level">{level}</span>' if level else ""
-            nodes.append(
-                f'<div class="skill-node{ " empty" if not level else ""}" title="{title}" aria-label="{title}">'
-                f'<img src="{skill_icon(key)}" alt="{name}">'
-                f'{rank}</div>'
-            )
-        panels.append(
-            f'<section class="skill-class" style="--tree:{color}"><header class="skill-class-head">'
-            f'<span title="{html.escape(label)}">{short}</span><span>{class_sp}</span></header>'
-            f'<div class="skill-nodes">{"".join(nodes)}</div></section>'
-        )
-    st.markdown(f'<div class="skill-board"><div class="skill-summary">{summary}</div><div class="skill-tree-grid">{"".join(panels)}</div></div>', unsafe_allow_html=True)
+            planned, current = int(levels.get(key, 0)), int(current_levels.get(key, 0))
+            if not (planned or current) or (changes_only and planned == current):
+                continue
+            delta = skill["costs"][planned] - skill["costs"][current]
+            change = f'{delta:+,} SP' if delta else 'Unchanged'
+            entries.append(f'<div class="skill-entry"><img src="{skill_icon(key)}" alt="">'
+                           f'<div class="skill-name">{html.escape(skill["Name"])}</div>'
+                           f'<div class="skill-levels"><span>{current}</span><b>→</b><strong>{planned}</strong></div>'
+                           f'<div class="skill-delta">{change}</div></div>')
+        if entries:
+            panels.append(f'<section class="discipline-panel" style="--discipline:{color}"><header><h4>{label}</h4><span>{totals[class_key]:,} SP</span></header>{"".join(entries)}</section>')
+    if panels:
+        st.markdown('<div class="allocation-ledger">' + ''.join(panels) + '</div>', unsafe_allow_html=True)
+    else:
+        st.info("No skills match this view.")
 
 
 def render():
-    st.set_page_config(page_title="TT2 · Player Optimizer", page_icon="⚔️", layout="wide")
+    st.set_page_config(page_title="Titan Forge · TT2", page_icon="⚔️", layout="wide")
     theme = Path(__file__).resolve().parents[1] / "static" / "player-ui.css"
     css = theme.read_text(encoding="utf-8")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
     data = catalog()
-    st.markdown('<div class="eyebrow"><span class="brand-sigil">⚔</span> TAP TITANS 2 <span class="brand-tag">BUILD LAB</span></div>', unsafe_allow_html=True)
-    st.title("Player optimizer")
-    st.markdown('<p class="hero-subtitle">Plan your build. Make every upgrade count.</p>', unsafe_allow_html=True)
     player = st.session_state.get("tt2_player")
-    if player and st.button("Clear imported player"):
-        for key in ("tt2_player", "tt2_result", "json_input"):
-            st.session_state.pop(key, None)
-        st.rerun()
-    with st.expander("Replace player JSON" if player else "Paste player JSON", expanded=not bool(player)):
-        st.caption("TT2 → Settings → Services → Export. Paste the full JSON below.")
-        with st.form("player_json_import", clear_on_submit=False):
-            raw = st.text_area("Player JSON", key="json_input", height=180, placeholder='Paste the full export, for example: {"Version":"8.3.0", ...}')
-            submitted = st.form_submit_button("Import player", type="primary", width="stretch")
-        if submitted:
-            try:
-                install_player(raw, "Pasted JSON")
-                st.rerun()
-            except ImportError as e:
-                st.error(str(e))
+    with st.sidebar:
+        st.markdown('<div class="forge-brand"><span>✦</span><div>TITAN FORGE<small>TAP TITANS 2 · STRATEGY DESK</small></div></div>', unsafe_allow_html=True)
+        player = st.session_state.get("tt2_player")
+        if player and st.button("Clear imported player"):
+            for key in ("tt2_player", "tt2_result", "json_input"):
+                st.session_state.pop(key, None)
+            st.rerun()
+        with st.expander("Replace player JSON" if player else "Paste player JSON", expanded=not bool(player)):
+            st.caption("TT2 → Settings → Services → Export. Paste the full JSON below.")
+            with st.form("player_json_import", clear_on_submit=False):
+                raw = st.text_area("Player JSON", key="json_input", height=180, placeholder='Paste the full export, for example: {"Version":"8.3.0", ...}')
+                submitted = st.form_submit_button("Import player", type="primary", width="stretch")
+            if submitted:
+                try:
+                    install_player(raw, "Pasted JSON")
+                    st.rerun()
+                except ImportError as e:
+                    st.error(str(e))
 
+        if player:
+            with st.container(key="reference_inputs"):
+                st.subheader("Loadout")
+                goal_labels = {"Maximum damage": "push", "Speed": "speed", "Balanced": "balanced"}
+                goal_label = st.radio("Optimization goal", list(goal_labels), key="optimization_goal")
+                goal = goal_labels[goal_label]
+                st.caption({"push": "Prioritize pushing power, regardless of speed.",
+                            "speed": "Prioritize prestige speed with damage support.",
+                            "balanced": "Balance pushing power and prestige speed."}[goal])
+                build = st.selectbox("Damage type", BUILDS)
+                gold = st.selectbox("Gold type", GOLD_SOURCES)
+                with st.expander("Advanced options"):
+                    weight = st.slider("Gold weighting", 0.0, 1.0, .7, .05, help="Gold is converted into modeled pushing value with this exponent.")
+                    contracts = st.checkbox("Include mana-heavy contracts", value=goal == "push", key=f"contracts_{goal}")
+                    attempts = st.number_input("Lightning Strike attempts per titan", 0, 1000, GOAL_LIGHTNING_ATTEMPTS[goal], key=f"lightning_attempts_{goal}", help="Preset proc budget: Push 60, Speed 3, Balanced 15. Override to match your play. This is not elapsed time.")
+                    spell_names = {"BurstDamage":"Heavenly Strike", "CritBoost":"Deadly Strike", "HandOfMidas":"Hand of Midas", "TapBoost":"Fire Sword", "HelperBoost":"War Cry", "ShadowClone":"Shadow Clone", "DualPet":"Dual Summon", "StreamOfBlades":"Blade Stream", "ThunderVolley":"Thunder Ship", "TwilightFairy":"Twilight Fairies", "GoldenMissile":"Golden Missile"}
+                    active_spells = st.multiselect("Active spells for monument scoring", list(data["spell_reductions"]), default=list(default_spells(build)), max_selections=4, format_func=spell_names.get, key=f"monument_spells_{build}", help="Choose the spells active during your run. This controls spell boosts, Portal of Shadows, and damage/gold per activated spell.")
+        st.caption(f"Tables {data['version']} · Session-only player data")
+    st.markdown('<div class="workspace-kicker">THE STRATEGY DESK</div>', unsafe_allow_html=True)
+    st.title("Forge your next ascent.")
     if not player:
-        st.caption(f"Game tables {data['version']} · Player data stays in this session")
+        st.markdown('<div class="welcome-panel"><span class="welcome-mark">✦</span><h2>Your next build starts here.</h2><p>Import your player export in the sidebar.</p><div class="welcome-path"><span>01 · Choose a goal</span><span>02 · Plan your skills</span><span>03 · Prioritize upgrades</span></div></div>', unsafe_allow_html=True)
         return
-
-    with st.container(key="reference_inputs"):
-        st.subheader("Build settings")
-        goal_labels = {"Maximum damage": "push", "Speed": "speed", "Balanced": "balanced"}
-        goal_label = st.radio("Optimization goal", list(goal_labels), horizontal=True, key="optimization_goal")
-        goal = goal_labels[goal_label]
-        st.caption({"push": "Prioritize pushing power, regardless of speed.",
-                    "speed": "Prioritize prestige speed with damage support.",
-                    "balanced": "Balance pushing power and prestige speed."}[goal])
-        build_col, gold_col = st.columns(2)
-        build = build_col.selectbox("Damage type", BUILDS)
-        gold = gold_col.selectbox("Gold type", GOLD_SOURCES)
-        with st.expander("Advanced options"):
-            weight = st.slider("Gold weighting", 0.0, 1.0, .7, .05, help="Gold is converted into modeled pushing value with this exponent.")
-            contracts = st.checkbox("Include mana-heavy contracts", value=goal == "push", key=f"contracts_{goal}")
-            attempts = st.number_input("Lightning Strike attempts per titan", 0, 1000, GOAL_LIGHTNING_ATTEMPTS[goal], key=f"lightning_attempts_{goal}", help="Preset proc budget: Push 60, Speed 3, Balanced 15. Override to match your play. This is not elapsed time.")
-            spell_names = {"BurstDamage":"Heavenly Strike", "CritBoost":"Deadly Strike", "HandOfMidas":"Hand of Midas", "TapBoost":"Fire Sword", "HelperBoost":"War Cry", "ShadowClone":"Shadow Clone", "DualPet":"Dual Summon", "StreamOfBlades":"Blade Stream", "ThunderVolley":"Thunder Ship", "TwilightFairy":"Twilight Fairies", "GoldenMissile":"Golden Missile"}
-            active_spells = st.multiselect("Active spells for monument scoring", list(data["spell_reductions"]), default=list(default_spells(build)), max_selections=4, format_func=spell_names.get, key=f"monument_spells_{build}", help="Choose the spells active during your run. This controls spell boosts, Portal of Shadows, and damage/gold per activated spell.")
     settings = Settings(build, gold, weight, contracts, attempts, active_spells=tuple(active_spells), optimization_goal=goal)
 
     player = st.session_state.get("tt2_player")
@@ -229,8 +216,7 @@ def render():
         st.info("Paste your full in-game export above to see your skill points, skill plan, artifacts, and seasonal monuments.")
         return
 
-    st.subheader(player.name)
-    st.caption(f"{player.source} · Max prestige stage {player.max_stage:,} · {build} / {gold}")
+    st.markdown(f'<div class="profile-line"><div><span class="profile-label">ACTIVE LOADOUT</span><h2>{html.escape(build)} <span>/ {html.escape(gold)}</span></h2></div><div class="stage-marker"><small>MAX STAGE</small><strong>{player.max_stage:,}</strong></div></div>', unsafe_allow_html=True)
     for message in player.warnings:
         st.warning(message)
     with st.container(key="player_metrics"):
@@ -242,7 +228,7 @@ def render():
         cols[4].metric("Monuments owned", sum(v > 0 for v in player.monuments.values()))
     skills_tab, artifact_tab, monument_tab = st.tabs(["Skills", "Artifacts", "Monuments"])
     with skills_tab:
-        st.subheader("Plan your allocation")
+        st.subheader("Skill workshop")
         with st.expander("Planning details"):
             st.caption("Estimates gain per SP with prerequisites. Global optimality, mana demand and prestige speed are not guaranteed.")
             st.caption("Maximum damage scores damage/gold only. Speed weights progression utility more heavily; Balanced weights both. Speed effects include build-specific skips, cooldowns, attack cadence, spawns, mana and spell uptime. Utility is an estimate, not seconds per prestige; titan density, starting stage, kill thresholds and player timing are not simulated.")
@@ -252,7 +238,7 @@ def render():
         limit = player.total_sp if mode == "respec" else player.available_sp
         reserve = c2.number_input("Keep SP unspent", min_value=0, max_value=max(0, limit), value=0, step=1, key=f"reserve_{mode}")
         if mode == "respec":
-            st.caption("Full respec requires an in-game skill-tree reset.")
+            st.caption("Reset your skill tree in-game to apply a full respec.")
         fingerprint = (repr(player), settings, mode, reserve)
         if st.button("Optimize skill points", type="primary", disabled=mode == "spend" and not player.skills_known):
             try:
@@ -284,8 +270,8 @@ def render():
             copy_col, _ = st.columns([1, 3])
             with copy_col:
                 components.html(f"""
-                  <button id="copy-build" style="background:#e9b949;color:#171b23;border:1px solid #f7d477;border-radius:9px;padding:10px 16px;font:600 14px sans-serif;cursor:pointer;width:100%">Copy build JSON</button>
-                  <span id="copy-status" role="status" style="display:block;color:#71d7ba;font:12px sans-serif;padding-top:4px"></span>
+                  <button id="copy-build" style="background:#bca1ff;color:#181122;border:1px solid #bca1ff;border-radius:9px;padding:10px 16px;font:600 14px sans-serif;cursor:pointer;width:100%">Copy build JSON</button>
+                  <span id="copy-status" role="status" style="display:block;color:#bca1ff;font:12px sans-serif;padding-top:4px"></span>
                   <script>
                     const buildText = {json.dumps(build_json)};
                     const button = document.getElementById('copy-build');
@@ -310,12 +296,12 @@ def render():
                   </script>
                 """, height=54, scrolling=False)
     with artifact_tab:
-        st.subheader("Your artifact priorities")
+        st.subheader("Relic armory")
         st.caption(f"Available relics: {player.relics:.4E}" if player.relics is not None else "Available relics were not included in this export.")
         inventory(player, settings, "artifacts")
         with st.expander("Artifact model details"):
             st.caption("Estimated next-level value includes primary effects and shared damage. Book of Shadows is a separate farming decision.")
     with monument_tab:
-        st.subheader("Your seasonal monuments")
+        st.subheader("Season atlas")
         st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
         inventory(player, settings, "monuments")
