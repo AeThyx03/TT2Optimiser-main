@@ -17,6 +17,7 @@ class Settings:
     gold_weight: float = 0.7
     contracts: bool = False
     lightning_attempts: int = 60
+    qol: bool = False
 
     def __post_init__(self):
         if self.build not in BUILDS or self.gold not in GOLD_SOURCES:
@@ -107,6 +108,89 @@ def spent(levels):
     return sum(catalog()["skills"][k]["costs"][v] for k, v in levels.items())
 
 
+# Utility weights are explicit heuristic assumptions, not damage multipliers or
+# measured run times. log1p gives diminishing returns to mana/duration/skip gains.
+# Each tuple is (CSV effect type, relevant builds or None, effect scale).
+QOL_EFFECTS = {
+    "CloakedSkipChance": (None, .1),
+    "CloakedSkipChanceBoostDuringHayst": (None, .1),
+    "MultiMonstersMaxCount": (None, 5),  # active farming and Silent March
+    "MultiMonsters": (None, .1),
+    "SpecialTitanSpawnChance": (None, .1),
+    "HaystMonsterSpawnChance": (None, .1),
+    "ManaPoolCap": (None, 100),
+    "AllManaSourceMult": (None, .5),
+    "ManaTapRegenAmount": (None, 5),
+    "ManaMonsterAmount": (None, 20),
+    "FairySpawnChance": (None, .5),
+    "FairyCooldown": (None, 30),
+    "BurstDamageSkillManaMult": ({"Heavenly Strike"}, .2),
+    "BurstSkillTitanSkip": ({"Heavenly Strike"}, 10),
+    "BurstSkillStageSkip": ({"Heavenly Strike"}, 10),
+    "PetAttackTitanSkip": ({"Pet"}, 10),
+    "PetQTEStageSkip": ({"Pet"}, 10),
+    "PetAttackStageSkip": ({"Pet"}, 10),
+    "PetQTECooldownMult": ({"Pet"}, .1),
+    "PetTapCountToAttack": ({"Pet"}, 5),
+    "AutoTapCount": ({"Pet"}, 3),
+    "ClanShipTitanSkip": ({"Clan Ship"}, 10),
+    "ClanShipStageSkip": ({"Clan Ship"}, 10),
+    "ClanQTECooldown": ({"Clan Ship"}, 15),
+    "ShadowCloneTitanSkip": ({"Shadow Clone"}, 10),
+    "ShadowCloneStageSkip": ({"Shadow Clone"}, 10),
+    "ShadowCloneSkillDuration": ({"Shadow Clone"}, 120),
+    "UltraDaggerTitanSkip": ({"Dagger"}, 10),
+    "UltraDaggerStageSkip": ({"Dagger"}, 10),
+    "UltraDaggerCooldown": ({"Dagger"}, 1),
+    "StreamOfBladesCooldownReduction": ({"Dagger"}, .1),
+    "GoldGunTitanSkip": ({"Gold Gun"}, 10),
+    "GoldGunStageSkip": ({"Gold Gun"}, 10),
+    "GoldenMissileStageSkip": ({"Gold Gun"}, 20),
+    "MagnumOpusDuration": ({"Gold Gun"}, 10),
+    "HelperBoostSkillDuration": ({"Clan Ship", "Shadow Clone", "Gold Gun"}, 120),
+    "TapBoostSkillDuration": ({"Pet", "Heavenly Strike", "Shadow Clone", "Dagger", "Gold Gun"}, 120),
+    "CritBoostSkillDuration": ({"Clan Ship", "Shadow Clone", "Pet", "Dagger", "Gold Gun"}, 120),
+    "HandOfMidasSkillDuration": (None, 120),
+    "ShadowCloneAllSkillDurationRate": (None, .3),
+    "DualPetDuration": ({"Pet"}, 120),
+    "ThunderVolleySkillDuration": ({"Clan Ship"}, 120),
+    "StreamOfBladesDuration": ({"Dagger"}, 120),
+    "TwilightFairySkillDuration": ({"Heavenly Strike", "Shadow Clone"}, 120),
+}
+QOL_MULTIPLIERS = {"SpecialTitanSpawnChance", "AllManaSourceMult", "MagnumOpusDuration"}
+QOL_REDUCTIONS = {"BurstDamageSkillManaMult", "PetQTECooldownMult", "ShadowCloneAllSkillDurationRate"}
+
+
+def qol_score(key, level, settings):
+    """Positive utility only; zero when disabled or irrelevant to this build.
+
+    Uses owned skill rank effects from the pinned CSV. Mana recovery assumes
+    access to tapping/Shadow Clone and Manni spawns; no mana sustainability,
+    special-titan frequency or offline duration is simulated.
+    """
+    if not settings.qol or not level:
+        return 0.0
+    skill = catalog()["skills"][key]
+    score = 0.0
+    for prefix in "ABC":
+        effect = skill[f"BonusType{prefix}"]
+        if effect not in QOL_EFFECTS:
+            continue
+        builds, scale = QOL_EFFECTS[effect]
+        if builds is not None and settings.build not in builds:
+            continue
+        value = float(skill[f"{prefix}{level}"])
+        if effect in QOL_REDUCTIONS:
+            gain = 1 - value
+        elif effect in QOL_MULTIPLIERS:
+            baseline = max(1.0, float(skill[f"{prefix}0"]))
+            gain = value / baseline - 1
+        else:
+            gain = value - float(skill[f"{prefix}0"])
+        score += 4 * math.log10(1 + max(0, gain) / scale)
+    return score
+
+
 def lower_tier_sp(key, levels):
     skills = catalog()["skills"]
     s = skills[key]
@@ -160,7 +244,9 @@ def optimize_skills(player, settings=Settings(), mode="respec", reserve=0):
         raise ValueError("Reserved SP exceeds the points currently available.")
     skills = catalog()["skills"]
     blocked = set() if settings.contracts else {"ForbiddenContract", "RoyalContract", "TerrifyingPact"}
-    scores = {k: [skill_score(k, i, settings, player.equipment) for i in range(s["max"] + 1)] for k, s in skills.items()}
+    damage_scores = {k: [skill_score(k, i, settings, player.equipment) for i in range(s["max"] + 1)] for k, s in skills.items()}
+    utility_scores = {k: [qol_score(k, i, settings) for i in range(s["max"] + 1)] for k, s in skills.items()}
+    scores = {k: [d + u for d, u in zip(damage_scores[k], utility_scores[k])] for k in skills}
 
     def score(tree):
         return sum(scores[k][v] for k, v in tree.items())
@@ -193,6 +279,8 @@ def optimize_skills(player, settings=Settings(), mode="respec", reserve=0):
 
     steps = []
     initial_score = score(levels)
+    initial_damage = sum(damage_scores[k][v] for k, v in levels.items())
+    initial_utility = sum(utility_scores[k][v] for k, v in levels.items())
     while spent(levels) < budget:
         base_cost, base_score = spent(levels), score(levels)
         best = None
@@ -224,13 +312,15 @@ def optimize_skills(player, settings=Settings(), mode="respec", reserve=0):
             break
         _, target_tree, key, target, cost, gain = best
         changes = "; ".join(f"{skills[k]['Name']} {levels.get(k, 0)} → {v}" for k, v in target_tree.items() if v != levels.get(k, 0))
-        steps.append({"Target": skills[key]["Name"], "Level": target, "SP": cost, "Changes (includes unlocks)": changes, "Modeled log10 gain": round(gain, 4)})
+        steps.append({"Target": skills[key]["Name"], "Level": target, "SP": cost, "Changes (includes unlocks)": changes, "Objective gain": round(gain, 4)})
         levels = target_tree
     errors = validate_allocation(levels, player.max_stage)
     if errors or spent(levels) > budget:
         raise ValueError("Unable to produce a valid allocation: " + " ".join(errors))
     return {"levels": levels, "spent": spent(levels), "remaining": player.total_sp - spent(levels),
-            "steps": steps, "log_gain": score(levels) - initial_score,
+            "steps": steps, "log_gain": sum(damage_scores[k][v] for k, v in levels.items()) - initial_damage,
+            "utility_gain": sum(utility_scores[k][v] for k, v in levels.items()) - initial_utility,
+            "objective_gain": score(levels) - initial_score,
             "export": {"Version": catalog()["version"], "Skills": levels}}
 
 

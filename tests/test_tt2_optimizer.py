@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
-from src.tt2_optimizer import Settings, bonus_weight, optimize_skills, rank_items, skill_score, spent, validate_allocation
+from src.tt2_optimizer import Settings, bonus_weight, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
 from src.tt2_player import ImportError, parse_player
 
 DEMO = Path(__file__).resolve().parents[1] / "examples/player-demo.json"
@@ -84,6 +84,36 @@ class ImportTests(unittest.TestCase):
 
 
 class SkillTests(unittest.TestCase):
+    def test_qol_routes_utility_without_changing_damage_score(self):
+        for build in BUILDS:
+            on, off = Settings(build=build, qol=True), Settings(build=build)
+            self.assertEqual(qol_score("Cloaking", 4, off), 0)
+            self.assertGreater(qol_score("Cloaking", 4, on), 0)
+            self.assertGreater(qol_score("MPCapacityBoost", 4, on), 0)
+            self.assertEqual(qol_score("TapDmg", 4, on), 0)
+            self.assertEqual(skill_score("ClanShipDmg", 4, on, set()), skill_score("ClanShipDmg", 4, off, set()))
+            self.assertEqual(qol_score("CloneSkillBoost", 4, on) > 0, build == "Shadow Clone")
+            self.assertEqual(qol_score("BurstSkillMana", 4, on) > 0, build == "Heavenly Strike")
+
+    def test_qol_plans_respect_budget_prerequisites_and_owned_skills(self):
+        p = parse_player(DEMO.read_text())
+        for build in BUILDS:
+            for mode in ("respec", "spend"):
+                with self.subTest(build=build, mode=mode):
+                    result = optimize_skills(p, Settings(build=build, qol=True), mode, reserve=10)
+                    self.assertLessEqual(result["spent"], p.total_sp - 10)
+                    self.assertFalse(validate_allocation(result["levels"], p.max_stage))
+                    self.assertAlmostEqual(result["objective_gain"], result["log_gain"] + result["utility_gain"])
+                    self.assertGreater(result["utility_gain"], 0)
+                    if mode == "spend":
+                        for key, rank in p.skills.items():
+                            self.assertGreaterEqual(result["levels"][key], rank)
+        baseline = optimize_skills(p)
+        enabled = optimize_skills(p, Settings(qol=True))
+        self.assertEqual(baseline, optimize_skills(p, Settings(qol=False)))
+        self.assertNotEqual(baseline["levels"], enabled["levels"])
+        self.assertGreater(enabled["levels"].get("Cloaking", 0), baseline["levels"].get("Cloaking", 0))
+
     def test_all_build_gold_combinations_budget_and_prerequisites(self):
         p = parse_player(api_player(total_skill_points=300))
         plans = set()

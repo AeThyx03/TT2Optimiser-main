@@ -169,11 +169,14 @@ def render():
         build_col, gold_col = st.columns(2)
         build = build_col.selectbox("Damage type", BUILDS)
         gold = gold_col.selectbox("Gold type", GOLD_SOURCES)
+        qol = st.toggle("Include QoL skills", value=False, help="Balance damage with prestige speed, idle support and mana. Uses approximate utility weights, not a run-time simulation.")
+        if qol:
+            st.caption("Speed + damage: considers Cloaking, multi-spawns, mana, spell uptime and skips for your build. These compete for SP; fastest runs and maximum damage cannot both be guaranteed.")
         with st.expander("Advanced options"):
             weight = st.slider("Gold weighting", 0.0, 1.0, .7, .05, help="Gold is converted into modeled pushing value with this exponent.")
             contracts = st.checkbox("Include mana-heavy contracts", value=False)
             attempts = st.number_input("Lightning Strike attempts per titan", 0, 1000, 60, help="Model assumption; adjust to match your attack rate and time to kill.")
-    settings = Settings(build, gold, weight, contracts, attempts)
+    settings = Settings(build, gold, weight, contracts, attempts, qol=qol)
 
     player = st.session_state.get("tt2_player")
     if not player:
@@ -220,6 +223,8 @@ def render():
             if result["remaining"] > reserve:
                 st.caption("Remaining points cannot buy another positively scored package within the selected constraints. They can be saved or used for utility skills.")
             st.caption(f"Modeled gain: +{result['log_gain']:.3f} log10 · {build} / {gold}")
+            if qol:
+                st.caption(f"QoL utility gain: +{result['utility_gain']:.3f} · combined damage + utility objective. Utility is not extra damage or a predicted run time.")
             render_skill_tree(result["levels"], player.skills)
             export = {
                 "Version": data["version"],
