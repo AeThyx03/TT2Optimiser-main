@@ -160,6 +160,10 @@ def render():
             except ImportError as e:
                 st.error(str(e))
 
+    qol = st.toggle("Include QoL skills", value=False, key="include_qol", help="Balance damage with prestige speed, idle support and mana. Uses approximate utility weights, not a run-time simulation.")
+    if qol:
+        st.caption("Speed + damage: considers Cloaking, multi-spawns, mana, spell uptime and skips for your build. These compete for SP; fastest runs and maximum damage cannot both be guaranteed.")
+
     if not player:
         st.caption(f"Game tables {data['version']} · Player data stays in this session")
         return
@@ -169,9 +173,6 @@ def render():
         build_col, gold_col = st.columns(2)
         build = build_col.selectbox("Damage type", BUILDS)
         gold = gold_col.selectbox("Gold type", GOLD_SOURCES)
-        qol = st.toggle("Include QoL skills", value=False, help="Balance damage with prestige speed, idle support and mana. Uses approximate utility weights, not a run-time simulation.")
-        if qol:
-            st.caption("Speed + damage: considers Cloaking, multi-spawns, mana, spell uptime and skips for your build. These compete for SP; fastest runs and maximum damage cannot both be guaranteed.")
         with st.expander("Advanced options"):
             weight = st.slider("Gold weighting", 0.0, 1.0, .7, .05, help="Gold is converted into modeled pushing value with this exponent.")
             contracts = st.checkbox("Include mana-heavy contracts", value=False)
