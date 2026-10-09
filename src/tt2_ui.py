@@ -107,6 +107,38 @@ def render_skill_tree(levels, current_levels):
     components.html(skill_tree_document(levels, current_levels, st.session_state["tt2_player"].total_sp, skill_icon), height=920, scrolling=True)
 
 
+@st.dialog("Privacy Policy")
+def privacy_policy():
+    st.caption("Tap Titans 2 Optimizer · Last updated October 9, 2026")
+    st.markdown("""
+This policy describes how the current version of Tap Titans 2 Optimizer, created by Aethyx, handles your data. This is an unofficial community tool.
+
+### 1. Information you provide
+The app processes the player JSON you import, your selected settings, and the resulting optimization plans to calculate recommendations. Only import your game export; do not include passwords or other sensitive information.
+
+### 2. Processing and storage
+Calculations run on the computer or server hosting the app. When you use a hosted version, your inputs are sent to that server for processing; they are not processed solely in your browser.
+
+The current optimizer keeps imported data and settings in temporary session memory. It does not intentionally save player exports to a database or file. Downloaded plans and copied build JSON remain wherever you choose to save or paste them.
+
+### 3. Third-party services
+The current interface does not integrate Google Analytics, Google AdSense, or Ko-fi. Streamlit usage statistics are disabled in the app configuration. A hosting provider may process connection information, such as IP addresses and access logs, under its own policies.
+
+### 4. Your choices
+You can use the app without importing data, although optimization requires a player export. Select **Clear imported player** under **Replace player JSON** to remove the imported profile, pasted JSON, and saved plan from the active session. This does not delete files you downloaded or copies you saved elsewhere.
+
+### 5. Changes
+This policy will be updated if the app adds persistent storage, analytics, advertising, or other data-processing services.
+""")
+
+
+def render_footer():
+    with st.container(key="app_footer"):
+        st.markdown('<footer class="creator-credit">Created by Aethyx · Unofficial community tool</footer>', unsafe_allow_html=True)
+        if st.button("Privacy", key="privacy_link"):
+            privacy_policy()
+
+
 def render():
     st.set_page_config(page_title="Tap Titans 2 Optimizer", page_icon="⚔️", layout="wide")
     theme = Path(__file__).resolve().parents[1] / "static" / "player-ui.css"
@@ -147,7 +179,7 @@ def render():
                 spell_names = {"BurstDamage":"Heavenly Strike", "CritBoost":"Deadly Strike", "HandOfMidas":"Hand of Midas", "TapBoost":"Fire Sword", "HelperBoost":"War Cry", "ShadowClone":"Shadow Clone", "DualPet":"Dual Summon", "StreamOfBlades":"Blade Stream", "ThunderVolley":"Thunder Ship", "TwilightFairy":"Twilight Fairies", "GoldenMissile":"Golden Missile"}
                 active_spells = st.multiselect("Active spells for monument scoring", list(data["spell_reductions"]), default=list(default_spells(build)), max_selections=4, format_func=spell_names.get, key=f"monument_spells_{build}", help="Choose the spells active during your run. This controls spell boosts, Portal of Shadows, and damage/gold per activated spell.")
     if not player:
-        st.markdown('<footer class="creator-credit">by Aethyx</footer>', unsafe_allow_html=True)
+        render_footer()
         return
     settings = Settings(build, gold, weight, contracts, attempts, active_spells=tuple(active_spells), optimization_goal=goal)
 
@@ -237,4 +269,4 @@ def render():
     with monument_tab:
         st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
         inventory(player, settings, "monuments")
-    st.markdown('<footer class="creator-credit">by Aethyx</footer>', unsafe_allow_html=True)
+    render_footer()
