@@ -458,6 +458,48 @@ def default_spells(build):
     }[build]
 
 
+def monument_lifetime_targets(player, settings):
+    """Estimated long-run investment shares, not next-level efficiencies.
+
+    At high levels, primary power is proportional to L**(weight*growth),
+    while cumulative upgrade spend is proportional to L**(cost_exponent+1).
+    Maximizing weighted log power under a total investment budget therefore
+    allocates spend in proportion to weight*growth/(cost_exponent+1).
+    Unknown cost scales cancel from this asymptotic share calculation. Discovery,
+    enchantment, capped-item spending and existing sunk costs are excluded;
+    these are targets for the scalable investment pool, not measured game shares.
+    """
+    scores = {}
+    for key, level in player.monuments.items():
+        item = catalog()["monuments"].get(key)
+        if not item or not level or item["IsActive"] != "TRUE":
+            continue
+        # A capped monument cannot absorb long-run investment.
+        if int(item["MaxLevel"]) or not item.get("PrimaryModelAvailable", True):
+            continue
+        weight = monument_weight(item, settings, player)
+        growth = float(item["GrowthExpo"])
+        cost_power = float(item["CostExpo"]) + 1
+        if weight is not None and weight > 0 and growth > 0 and cost_power > 0 and float(item["EffectPerLevel"]) > 0:
+            scores[key] = weight * growth / cost_power
+    targets = {key: None for key in player.monuments}
+    if not scores:
+        return targets
+    # Largest-remainder rounding keeps displayed targets at exactly 100.00%.
+    total = sum(scores.values())
+    exact = {key: 10000 * score / total for key, score in scores.items()}
+    units = {key: math.floor(value) for key, value in exact.items()}
+    remainder = 10000 - sum(units.values())
+    order = sorted(exact, key=lambda key: (-(exact[key] - units[key]), key))
+    for key in order[:remainder]:
+        units[key] += 1
+    for key, level in player.monuments.items():
+        item = catalog()["monuments"].get(key)
+        if item and item.get("PrimaryModelAvailable", True) and monument_weight(item, settings, player) is not None:
+            targets[key] = units.get(key, 0) / 100
+    return targets
+
+
 def rank_items(player, settings, kind="artifacts"):
     """Finite next-level gains per modeled cost, not a full spending plan.
 
@@ -543,4 +585,8 @@ def rank_items(player, settings, kind="artifacts"):
     best = next((r["log_efficiency"] for r in rows if r["Priority"] == 1), None)
     for row in rows:
         row["Relative efficiency %"] = None if row["log_efficiency"] is None else round(100 * 10 ** (row["log_efficiency"] - best), 2)
+    if kind == "monuments":
+        targets = monument_lifetime_targets(player, settings)
+        for row in rows:
+            row["Target lifetime mementos % (estimate)"] = targets[row["ID"]]
     return rows

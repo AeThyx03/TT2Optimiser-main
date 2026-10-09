@@ -17,8 +17,9 @@ class PlayerUITests(unittest.TestCase):
         cards = [x.value for x in app.markdown if "collection-card" in x.value]
         rosabella = next(x for x in cards if "Rosabella" in x)
         self.assertNotIn("Upgrade first", rosabella)
-        self.assertIn("Primary effect does not benefit this build", rosabella)
-        self.assertIn("companions", rosabella)
+        self.assertIn("Not recommended", rosabella)
+        self.assertIn("0.00% target of lifetime mementos", rosabella)
+        self.assertNotIn("companions", rosabella)
 
     def test_collection_priorities_and_filters(self):
         app = self.app()
@@ -28,14 +29,19 @@ class PlayerUITests(unittest.TestCase):
         self.click(app, "Import player")
         self.assertFalse(app.exception)
         next(s for s in app.selectbox if s.label == "Damage type").select("Heavenly Strike").run()
-        self.assertTrue(any("Focus upgrades on" in x.value for x in app.info))
         cards = [x.value for x in app.markdown if "collection-card" in x.value]
         self.assertTrue(any("Upgrade first" in x for x in cards))
         self.assertTrue(any("data:image/png;base64" in x for x in cards))
         rosabella = next(x for x in cards if "Rosabella" in x)
         self.assertIn("Not recommended", rosabella)
         self.assertNotIn("Upgrade first", rosabella)
-        self.assertTrue(app.checkbox(key="affordable_monuments").disabled)
+        self.assertIn("0.00% target of lifetime mementos", rosabella)
+        self.assertFalse(any("% of best relative value" in x for x in cards))
+        glassbone = next(x for x in cards if "The Glassbone Menagerie" in x)
+        self.assertIn("target of lifetime mementos", glassbone)
+        self.assertNotIn("Current lifetime share", glassbone)
+        self.assertEqual(sum('The Glassbone Menagerie</h4>' in x for x in cards), 1)
+        self.assertFalse(any(x.key == "affordable_monuments" for x in app.checkbox))
         app.text_input(key="search_monuments").input("no matching monument").run()
         self.assertFalse(app.exception)
         self.assertTrue(any("No items match" in x.value for x in app.info))

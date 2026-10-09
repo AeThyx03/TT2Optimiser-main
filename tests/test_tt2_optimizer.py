@@ -3,10 +3,11 @@ import unittest
 import math
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
-from src.tt2_optimizer import Settings, bonus_weight, item_effect_gain, monument_weight, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
+from src.tt2_optimizer import Settings, bonus_weight, item_effect_gain, monument_lifetime_targets, monument_weight, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
 from src.tt2_player import ImportError, parse_player
 
 DEMO = Path(__file__).resolve().parents[1] / "examples/player-demo.json"
@@ -227,6 +228,42 @@ class ItemTests(unittest.TestCase):
         self.assertTrue(all(row["log_efficiency"] is not None for row in rows))
         p.relics = Decimal('1e100')
         self.assertTrue(all(row["Affordable"] is True for row in rank_items(p, Settings())))
+
+    def test_lifetime_targets_equalize_gain_per_investment(self):
+        # Power = L^4 and gold = L^12, each with cumulative spend ~ L^2:
+        # maximizing log power + log gold spends 25% and 75%, regardless
+        # of the current levels, remaining balance or absolute price scales.
+        p = parse_player(api_player())
+        p.monuments = {"damage": Decimal(100), "gold": Decimal(1000),
+                       "offbuild": Decimal(20), "capped": Decimal(40), "unknown": Decimal(5)}
+        base = {"IsActive": "TRUE", "MaxLevel": "0", "PrimaryModelAvailable": True,
+                "EffectPerLevel": "1", "CostExpo": "1", "GrowthExpo": "4"}
+        items = {"damage": dict(base, BonusType="AllDamage", CostCoef="1"),
+                 "gold": dict(base, BonusType="GoldAll", GrowthExpo="12", CostCoef="1e70"),
+                 "offbuild": dict(base, BonusType="CompanionDamage"),
+                 "capped": dict(base, BonusType="AllDamage", MaxLevel="40")}
+        with patch("src.tt2_optimizer.catalog", return_value={"monuments": items}):
+            targets = monument_lifetime_targets(p, Settings(build="Heavenly Strike", gold_weight=1))
+            self.assertEqual(targets, {"damage": 25, "gold": 75, "offbuild": 0, "capped": 0, "unknown": None})
+            p.monuments["damage"] = Decimal('1e1000')
+            p.mementos = Decimal('1e500')
+            self.assertEqual(targets, monument_lifetime_targets(p, Settings(build="Heavenly Strike", gold_weight=1)))
+
+    def test_lifetime_targets_use_actual_build_and_sum_to_100(self):
+        p = parse_player((Path(__file__).parent / "fixtures/monument-player.json").read_text())
+        rows = rank_items(p, Settings(build="Heavenly Strike"), "monuments")
+        targets = {r["ID"]: r["Target lifetime mementos % (estimate)"] for r in rows}
+        self.assertAlmostEqual(sum(v for v in targets.values() if v is not None), 100)
+        self.assertEqual(targets["SeasonalArtifact6"], 0)
+        self.assertGreater(targets["SeasonalArtifact51"], 0)
+        self.assertLess(targets["SeasonalArtifact51"], 100)
+        self.assertGreater(targets["SeasonalArtifact43"], 0)
+        # Turning off gold reduces every gold-only allocation to zero.
+        damage_only = monument_lifetime_targets(p, Settings(build="Heavenly Strike", gold_weight=0))
+        self.assertEqual(damage_only["SeasonalArtifact51"], 0)
+        self.assertGreater(damage_only["SeasonalArtifact43"], targets["SeasonalArtifact43"])
+        lone = parse_player(api_player(monuments={"Rosabella's Village": 1}))
+        self.assertIsNone(monument_lifetime_targets(lone, Settings(build="Heavenly Strike"))["SeasonalArtifact6"])
 
     def test_enchantment_aliases_in_both_collections(self):
         data = api_player(artifacts={"Book of Prophecy": {"level": 1, "enchanted": True}},

@@ -32,29 +32,28 @@ def item_icon(key):
 def collection_card(row, currency, featured=False):
     name = html.escape(row["Name"])
     icon = item_icon(row["ID"])
-    artwork = f'<img src="{icon}" alt="{name}">' if icon else '<span class="item-art-missing">Artwork<br>unavailable</span>'
+    artwork = f'<div class="item-art"><img src="{icon}" alt="{name}"></div>' if icon else ""
     priority = row["Priority"]
-    badge = "Upgrade first" if featured else f"#{priority}" if priority else row["Status"]
-    efficiency = row["Relative efficiency %"]
-    efficiency_text = f"{efficiency:g}% of best relative value" if efficiency is not None else "Unranked"
-    reason = "Primary effect + collection damage" if row["Status"] == "Ranked (estimate)" else "Build-relevant primary effect" if row["Status"] == "Ranked (primary effect estimate)" else row["Status"]
-    available = "Within current balance" if row["Affordable"] is True else "Save more first" if row["Affordable"] is False else "Price not modeled" if row["Next cost (estimate)"] is None else "Balance not provided"
-    primary = row["Primary gain log10 (estimate)"]
-    primary_text = "Primary effect does not benefit this build / gold source" if primary == "0" else "Primary effect is not modeled" if primary is None else "Primary effect benefits this build / gold source"
-    price_text = f'Next level ≈ {row["Next cost (estimate)"]} {currency}' if row["Next cost (estimate)"] else "Next-level price unavailable"
+    status = "Not recommended" if row["Status"] == "Not recommended for this build / gold source" else row["Status"]
+    badge = "Upgrade first" if featured else f"#{priority}" if priority else status
+    percentage = row["Relative efficiency %"]
+    value_text = f"{percentage:g}% relative efficiency" if percentage is not None else "Unranked"
+    price = row["Next cost (estimate)"]
+    cost_text = f'<div class="item-cost">Next level ≈ {price} {currency}</div>' if price else ""
+    if currency == "mementos":
+        percentage = row["Target lifetime mementos % (estimate)"]
+        value_text = f"{percentage:.2f}% target of lifetime mementos" if percentage is not None else "Target unavailable"
+        cost_text = ""
     st.markdown(
-        f'<article class="collection-card{ " featured" if featured else ""}">'
-        f'<div class="item-art">{artwork}</div><div class="item-body">'
+        f'<article class="collection-card{ " featured" if featured else ""}{ " unranked" if priority is None else ""}">'
+        f'{artwork}<div class="item-body">'
         f'<span class="item-badge">{html.escape(badge)}</span><h4>{name}</h4>'
         f'<div class="item-level">Level {html.escape(row["Level"])}{ " · Enchanted" if row["Enchanted"] else ""}</div>'
-        f'<div class="item-reason">{html.escape(row["Effect description"])}</div>'
-        f'<div class="item-reason">{primary_text}</div>'
-        f'<div class="item-efficiency">{efficiency_text}</div>'
-        f'<div class="item-meter"><span style="width:{efficiency or 0}%"></span></div>'
-        f'<div class="item-cost">{price_text}</div>'
-        f'<div class="item-reason">{html.escape(reason)} · {available if priority else ""}</div>'
-        '</div></article>', unsafe_allow_html=True,
+        f'<div class="item-efficiency">{value_text}</div>'
+        f'<div class="item-meter"><span style="width:{percentage or 0}%"></span></div>'
+        f'{cost_text}</div></article>', unsafe_allow_html=True,
     )
+
 
 def install_player(payload, source):
     player = parse_player(payload, source)
@@ -70,16 +69,15 @@ def inventory(player, settings, kind):
     currency = "relics" if kind == "artifacts" else "mementos"
     ranked = [r for r in rows if r["Priority"] is not None]
     if kind == "monuments":
-        st.caption("Build upgrade priorities use relevant primary effects and a relative cost curve. Off-build monuments stay unranked even if they are cheap. Shared All Monument Damage does not choose upgrades. Exact memento prices and affordability are unavailable.")
+        st.caption("Estimated lifetime targets · 100% total across supported, uncapped monuments for this build.")
+        with st.expander("How to reach your lifetime targets"):
+            st.markdown("Compare each target with **% of lifetime Mementos** in the game's Monument Info. A 20% target means roughly one fifth of your lifetime investment should go to that monument. Add investment to monuments below their targets as you earn more mementos; a 0% target means no additional investment for this build. Your existing investment cannot be reduced by upgrading.")
+            st.caption("Estimates use effect and cumulative cost growth; discovery, enchantment, capped-item spending and shared collection damage are excluded. Current lifetime shares and exact target levels are unavailable in this export. Available mementos are separate from lifetime investment.")
         if any(r["Status"] == "Effect needs compatible season data" for r in rows):
-            st.info("Your screenshots correct several effects that differ from the bundled season table. Those entries show their in-game descriptions, but stay unranked until compatible growth and cost data are available.")
+            st.info("Some effects need compatible season data before they can be ranked.")
     if ranked:
         best = ranked[0]
         collection_card(best, currency, featured=True)
-        if kind == "monuments":
-            st.info(f"Focus upgrades on {best['Name']} first for {settings.build} / {settings.gold}. Compare value per memento, rather than matching monument levels. Re-import after upgrades to see when another monument becomes the better choice.")
-        else:
-            st.caption(f"Best next upgrade for {settings.build} / {settings.gold}: {best['Name']}.")
         if best["Affordable"] is False:
             next_affordable = next((r for r in ranked if r["Affordable"] is True), None)
             if next_affordable:
@@ -88,21 +86,27 @@ def inventory(player, settings, kind):
                 st.caption(f"Your current balance cannot buy a ranked next level. Save more {currency}.")
     else:
         st.info("No upgrade can be ranked from this collection: check caps, season activity and supported effects.")
-    st.caption("Relative value = modeled primary gain divided by the snapshot's cost curve. Absolute prices are unavailable. Your build, gold source and active spells determine relevance; season counters remain fixed." if kind == "monuments" else "Upgrade value = modeled next-level gain per currency spent, including shared artifact damage. Primary effects use your selected build and gold source. These are estimates; conditional effects remain fixed.")
     search = st.text_input(f"Search {kind}", key=f"search_{kind}", placeholder="Name, effect, or ID")
     only = st.checkbox("Show ranked upgrades only", key=f"ranked_{kind}")
     if kind == "monuments":
         # Clear an old checked filter from sessions created before prices were
         # withheld, so a disabled control cannot hide every monument.
         st.session_state["affordable_monuments"] = False
-    affordable = st.checkbox("Show affordable upgrades only", key=f"affordable_{kind}", disabled=kind == "monuments" or player.relics is None)
+    affordable = False if kind == "monuments" else st.checkbox("Show affordable upgrades only", key=f"affordable_{kind}", disabled=player.relics is None)
     visible = [r for r in rows if (not only or r["Priority"] is not None) and (not affordable or r["Affordable"] is True) and search.lower() in (r["Name"] + r["Effect"] + r["ID"]).lower()]
     display = [{field: r[field] for field in ("Priority", "Name", "Level", "Relative efficiency %", "Next cost (estimate)", "Affordable", "Gain log10 (estimate)", "Primary gain log10 (estimate)", "Collection gain log10 (estimate)", "Enchanted", "Status", "Effect", "ID")} for r in visible]
+    if kind == "monuments":
+        for record, row in zip(display, visible):
+            record["Target lifetime mementos % (estimate)"] = row["Target lifetime mementos % (estimate)"]
+            record["Effect description"] = row["Effect description"]
+            record["Next-level efficiency % of best"] = record.pop("Relative efficiency %")
     if not visible:
         st.info("No items match these filters.")
-    for start in range(0, len(visible), 2):
+    # The featured recommendation is already visible above the collection.
+    card_rows = [r for r in visible if not ranked or r["ID"] != ranked[0]["ID"]]
+    for start in range(0, len(card_rows), 2):
         columns = st.columns(2)
-        for col, row in zip(columns, visible[start:start + 2]):
+        for col, row in zip(columns, card_rows[start:start + 2]):
             with col:
                 collection_card(row, currency)
     with st.expander("Compare upgrade numbers"):
@@ -179,14 +183,14 @@ def render():
     data = catalog()
     st.markdown('<div class="eyebrow"><span class="brand-sigil">⚔</span> TAP TITANS 2 <span class="brand-tag">BUILD LAB</span></div>', unsafe_allow_html=True)
     st.title("Player optimizer")
-    st.markdown('<p class="hero-subtitle">Paste your in-game export, choose your build, and plan your next skill upgrades.</p>', unsafe_allow_html=True)
+    st.markdown('<p class="hero-subtitle">Plan your build. Make every upgrade count.</p>', unsafe_allow_html=True)
     player = st.session_state.get("tt2_player")
     if player and st.button("Clear imported player"):
         for key in ("tt2_player", "tt2_result", "json_input"):
             st.session_state.pop(key, None)
         st.rerun()
     with st.expander("Replace player JSON" if player else "Paste player JSON", expanded=not bool(player)):
-        st.caption("In Tap Titans 2, open Settings → Services → Export, then paste the complete JSON export here. Your import stays in this browser session.")
+        st.caption("TT2 → Settings → Services → Export. Paste the full JSON below.")
         with st.form("player_json_import", clear_on_submit=False):
             raw = st.text_area("Player JSON", key="json_input", height=180, placeholder='Paste the full export, for example: {"Version":"8.3.0", ...}')
             submitted = st.form_submit_button("Import player", type="primary", width="stretch")
@@ -198,8 +202,6 @@ def render():
                 st.error(str(e))
 
     qol = st.toggle("Include QoL skills", value=False, key="include_qol", help="Balance damage with prestige speed, idle support and mana. Uses approximate utility weights, not a run-time simulation.")
-    if qol:
-        st.caption("Speed + damage: considers Cloaking, multi-spawns, mana, spell uptime and skips for your build. These compete for SP; fastest runs and maximum damage cannot both be guaranteed.")
 
     if not player:
         st.caption(f"Game tables {data['version']} · Player data stays in this session")
@@ -237,14 +239,15 @@ def render():
     skills_tab, artifact_tab, monument_tab = st.tabs(["Skills", "Artifacts", "Monuments"])
     with skills_tab:
         st.subheader("Plan your allocation")
-        st.caption("A prerequisite-aware heuristic ranks multi-level upgrades by modeled gain per SP. It is not a guaranteed global optimum. Mana, prestige speed and active play assumptions still need your judgment.")
+        with st.expander("Planning details"):
+            st.caption("Estimates gain per SP with prerequisites. Global optimality, mana demand and prestige speed are not guaranteed.")
         c1, c2 = st.columns([3, 1])
         mode_label = c1.radio("Planning mode", ["Full respec", "Spend available points"], horizontal=True)
         mode = "respec" if mode_label == "Full respec" else "spend"
         limit = player.total_sp if mode == "respec" else player.available_sp
         reserve = c2.number_input("Keep SP unspent", min_value=0, max_value=max(0, limit), value=0, step=1, key=f"reserve_{mode}")
         if mode == "respec":
-            st.caption("Full respec reallocates your total SP; applying it in-game requires a skill-tree reset. Reserve points for mana and utility skills you want to choose manually.")
+            st.caption("Full respec requires an in-game skill-tree reset.")
         fingerprint = (repr(player), settings, mode, reserve)
         if st.button("Optimize skill points", type="primary", disabled=mode == "spend" and not player.skills_known):
             try:
@@ -261,10 +264,10 @@ def render():
             result = saved[1]
             st.success(f"Valid plan · {result['spent']:,} SP allocated · {result['remaining']:,} SP unspent")
             if result["remaining"] > reserve:
-                st.caption("Remaining points cannot buy another positively scored package within the selected constraints. They can be saved or used for utility skills.")
+                st.caption("Remaining SP can be saved or spent on utility skills.")
             st.caption(f"Modeled gain: +{result['log_gain']:.3f} log10 · {build} / {gold}")
             if qol:
-                st.caption(f"QoL utility gain: +{result['utility_gain']:.3f} · combined damage + utility objective. Utility is not extra damage or a predicted run time.")
+                st.caption(f"QoL utility gain: +{result['utility_gain']:.3f} · approximate")
             render_skill_tree(result["levels"], player.skills)
             export = {
                 "Version": data["version"],
@@ -303,9 +306,9 @@ def render():
         st.subheader("Your artifact priorities")
         st.caption(f"Available relics: {player.relics:.4E}" if player.relics is not None else "Available relics were not included in this export.")
         inventory(player, settings, "artifacts")
-        st.info("Book of Shadows is kept separate: its relic-farming value depends on your prestige and tournament goals.")
+        with st.expander("Artifact model details"):
+            st.caption("Estimated next-level value includes primary effects and shared damage. Book of Shadows is a separate farming decision.")
     with monument_tab:
         st.subheader("Your seasonal monuments")
         st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
-        st.caption("Monument season data matches your supplied screenshots and export. Live season counters and equipment interactions are not fully simulated; use Advanced options to set your active spells.")
         inventory(player, settings, "monuments")
