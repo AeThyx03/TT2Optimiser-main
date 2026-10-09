@@ -1,6 +1,9 @@
 """Player optimizer interface shared by standalone and multipage entrypoints."""
 import json
 import html
+import base64
+from functools import lru_cache
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -9,6 +12,13 @@ import streamlit.components.v1 as components
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
 from src.tt2_optimizer import Settings, optimize_skills, rank_items, validate_allocation
 from src.tt2_player import ImportError, parse_player
+
+
+@lru_cache(maxsize=128)
+def skill_icon(key):
+    """Embed bundled icons so deployment paths cannot break the skill grid."""
+    path = Path(__file__).resolve().parents[1] / "static" / "skill-icons" / f"{key}.png"
+    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
 def install_player(payload, source):
     player = parse_player(payload, source)
@@ -80,7 +90,7 @@ def render_skill_tree(levels, current_levels):
             rank = f'<span class="skill-node-level">{level}</span>' if level else ""
             nodes.append(
                 f'<div class="skill-node{ " empty" if not level else ""}" title="{title}" aria-label="{title}">'
-                f'<img src="/app/static/skill-icons/{key}.png" alt="{name}" loading="lazy">'
+                f'<img src="{skill_icon(key)}" alt="{name}">'
                 f'{rank}</div>'
             )
         panels.append(
