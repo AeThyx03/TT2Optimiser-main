@@ -10,7 +10,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
-from src.tt2_optimizer import Settings, optimize_skills, rank_items, validate_allocation
+from src.tt2_optimizer import Settings, optimize_skills, rank_items
 from src.tt2_player import ImportError, parse_player
 
 
@@ -130,6 +130,8 @@ def render():
       [data-testid="stExpander"] {border-color:#ffffff24;border-radius:10px;}
       [data-testid="stDataFrame"] {border:1px solid #ffffff1c;border-radius:8px;overflow:hidden;}
     </style>""", unsafe_allow_html=True)
+    theme = Path(__file__).resolve().parents[1] / "static" / "player-ui.css"
+    st.markdown(f"<style>{theme.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
     data = catalog()
     st.markdown('<div class="eyebrow">TAP TITANS 2</div>', unsafe_allow_html=True)
     st.title("Player optimizer")
@@ -182,7 +184,7 @@ def render():
         cols[2].metric("Available", f"{player.available_sp:,}" if player.skills_known else "Unknown")
         cols[3].metric("Artifacts owned", sum(v > 0 for v in player.artifacts.values()))
         cols[4].metric("Monuments owned", sum(v > 0 for v in player.monuments.values()))
-    skills_tab, artifact_tab, monument_tab, about_tab = st.tabs(["Skills", "Artifacts", "Monuments", "Data & method"])
+    skills_tab, artifact_tab, monument_tab = st.tabs(["Skills", "Artifacts", "Monuments"])
     with skills_tab:
         st.subheader("Plan your allocation")
         st.caption("A prerequisite-aware heuristic ranks multi-level upgrades by modeled gain per SP. It is not a guaranteed global optimum. Mana, prestige speed and active play assumptions still need your judgment.")
@@ -212,16 +214,12 @@ def render():
                 st.caption("Remaining points cannot buy another positively scored package within the selected constraints. They can be saved or used for utility skills.")
             st.caption(f"Modeled gain: +{result['log_gain']:.3f} log10 · {build} / {gold}")
             render_skill_tree(result["levels"], player.skills)
-            allocation = [{"Tree": s["Class"], "Skill": s["Name"], "Current": player.skills.get(k, 0), "Planned": result["levels"].get(k, 0), "Change": result["levels"].get(k, 0) - player.skills.get(k, 0), "Planned SP": s["costs"][result["levels"].get(k, 0)]}
-                          for k, s in data["skills"].items() if result["levels"].get(k, 0) or player.skills.get(k, 0)]
-            with st.expander("Detailed skill allocation"):
-                st.dataframe(pd.DataFrame(allocation), hide_index=True, width="stretch")
             export = {
                 "Version": data["version"],
                 "Skills": {key: str(level) for key, level in result["levels"].items() if level > 0},
             }
             build_json = json.dumps(export, separators=(",", ":"))
-            copy_col, download_col, _ = st.columns([1, 1.4, 3])
+            copy_col, _ = st.columns([1, 3])
             with copy_col:
                 components.html(f"""
                   <button id="copy-build" style="background:#6276ee;color:white;border:0;border-radius:7px;padding:10px 16px;font:600 14px sans-serif;cursor:pointer;width:100%">Copy build JSON</button>
@@ -249,20 +247,6 @@ def render():
                     }});
                   </script>
                 """, height=54, scrolling=False)
-            with download_col:
-                st.download_button("Download build JSON", build_json, "tt2-skill-build.json", "application/json", width="stretch")
-            with st.expander("Preview game-ready JSON"):
-                st.code(build_json, language="json")
-            with st.expander("Upgrade sequence and prerequisite packages"):
-                st.dataframe(pd.DataFrame(result["steps"]), hide_index=True, width="stretch")
-        with st.expander("Current skill allocation"):
-            if player.skills_known:
-                errors = validate_allocation(player.skills, player.max_stage)
-                for error in errors:
-                    st.warning(error)
-                st.dataframe(pd.DataFrame([{"Skill": data["skills"][k]["Name"], "Level": v, "Spent SP": data["skills"][k]["costs"][v]} for k, v in player.skills.items()]), hide_index=True, width="stretch")
-            else:
-                st.info("Current skill allocation was not included.")
     with artifact_tab:
         st.subheader("Your artifact priorities")
         st.caption(f"Available relics: {player.relics:.4E}" if player.relics is not None else "Available relics were not included in this export.")
@@ -273,11 +257,3 @@ def render():
         st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
         st.warning("Season activity and scaling come from the pinned snapshot, not a live season check. Conditional monument effects are held constant in the approximate ranking.")
         inventory(player, settings, "monuments")
-    with about_tab:
-        st.subheader("Traceable data. Explicit assumptions.")
-        st.write(f"Bundled game version: **{data['version']}**. The app works offline after installation. No claim is made that this snapshot matches the latest live game.")
-        for repo, commit in data["sources"].items():
-            st.markdown(f"[{repo} · {commit[:8]}](https://github.com/rawrzcookie/{repo}/tree/{commit})")
-        st.write("Skill costs use Co0 for level 1, cumulative rank costs, parent-skill requirements, lower-tier SP gates and stage unlocks. Scores use build reductions, gold weighting, owned multicast/mythic equipment and selected Lightning Strike assumptions. The engine searches multi-level packages greedily; it does not guarantee the best possible allocation.")
-        st.write("Artifact and monument rankings use an asymptotic marginal-efficiency estimate: weight × GrowthExpo / (ln(10) × CostCoef × level^(CostExpo + 1)). Unmodeled effects, inactive monuments, unknown IDs and capped items are displayed without fabricated priorities. This model does not predict exact upgrade levels, damage, or prestige time.")
-        st.markdown("Formula adaptations and reduction tables credit [rawrzcookie's MIT optimizer](https://github.com/rawrzcookie/rawrzcookie.github.io). See THIRD_PARTY_NOTICES.md for provenance and limitations.")
