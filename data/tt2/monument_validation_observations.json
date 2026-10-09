@@ -1,0 +1,10 @@
+{
+  "source": "User screenshots supplied October 9, 2026; levels and lifetime shares are rounded display values, not exact exports.",
+  "same_lifetime_denominator_assumed": true,
+  "observations": [
+    {"monument": "SeasonalArtifact43", "level_display": 125220, "lifetime_share_percent": 12.49, "damage_percent": "1.69e7047", "next_damage_percent": "1.81e7047", "next_level_cost": "3.53e68"},
+    {"monument": "SeasonalArtifact51", "level_display": 126330, "lifetime_share_percent": 23.95, "damage_percent": "3.14e7080", "next_damage_percent": "3.36e7080"},
+    {"monument": "SeasonalArtifact51", "level_display": 126330, "lifetime_share_percent": 23.97, "damage_percent": "3.36e7080", "next_damage_percent": "3.60e7080"}
+  ],
+  "missing": ["Exact before/after levels", "Glassbone next-level memento cost", "Matched before/after memento balances or total lifetime mementos", "Confirmation that discovery, enchantment and cost modifiers were unchanged"]
+}

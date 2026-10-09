@@ -51,10 +51,12 @@ No provider source code is copied into this application.
 - Primary gains use finite ratios for 1 + coefficient × level^growth. Large
   levels use log-space derivatives; imported enchantment multipliers scale the
   primary effect once. Artifact priorities also include additive collection
-  damage. Off-build/unmodeled monuments are excluded, and All Monument Damage
-  does not determine upgrade priority. Monument absolute prices and affordability
-  are withheld: the cost coefficients are only a relative curve without verified
-  acquisition/season scaling. Conditional counters and synergies remain estimates.
+  damage. Monument ordering includes a screenshot-matched shared-damage curve,
+  but remains experimental because the relative cost curve fails the supplied
+  lifetime-share comparison. Lifetime allocation percentages are withheld until
+  costs are calibrated. Monument absolute prices and affordability are withheld.
+  Conditional counters and synergies remain estimates. Measured upgrade checks
+  validate only the observed range, not the global optimum.
 - Monument parameters use EndgameSeasonArtifactInfo_1.csv, whose effects and
   growth magnitudes match the supplied 33 screenshots and player export. The
   screenshots/export correct display names: Rosabella's Village = ID 6,

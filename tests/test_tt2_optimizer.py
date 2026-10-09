@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
-from src.tt2_optimizer import Settings, bonus_weight, item_effect_gain, monument_lifetime_targets, monument_weight, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
+from src.tt2_optimizer import Settings, bonus_weight, item_effect_gain, monument_lifetime_targets, monument_experimental_targets, monument_weight, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
 from src.tt2_player import ImportError, parse_player
 
 DEMO = Path(__file__).resolve().parents[1] / "examples/player-demo.json"
@@ -299,19 +299,18 @@ class ItemTests(unittest.TestCase):
 
     def test_lifetime_targets_use_actual_build_and_sum_to_100(self):
         p = parse_player((Path(__file__).parent / "fixtures/monument-player.json").read_text())
-        rows = rank_items(p, Settings(build="Heavenly Strike"), "monuments")
-        targets = {r["ID"]: r["Target lifetime mementos % (estimate)"] for r in rows}
+        targets = monument_experimental_targets(p, Settings(build="Heavenly Strike"))
         self.assertAlmostEqual(sum(v for v in targets.values() if v is not None), 100)
         self.assertEqual(targets["SeasonalArtifact6"], 0)
         self.assertGreater(targets["SeasonalArtifact51"], 0)
         self.assertLess(targets["SeasonalArtifact51"], 100)
         self.assertGreater(targets["SeasonalArtifact43"], 0)
         # Turning off gold reduces every gold-only allocation to zero.
-        damage_only = monument_lifetime_targets(p, Settings(build="Heavenly Strike", gold_weight=0))
+        damage_only = monument_experimental_targets(p, Settings(build="Heavenly Strike", gold_weight=0))
         self.assertEqual(damage_only["SeasonalArtifact51"], 0)
         self.assertGreater(damage_only["SeasonalArtifact43"], targets["SeasonalArtifact43"])
         lone = parse_player(api_player(monuments={"Rosabella's Village": 1}))
-        self.assertIsNone(monument_lifetime_targets(lone, Settings(build="Heavenly Strike"))["SeasonalArtifact6"])
+        self.assertEqual(monument_lifetime_targets(lone, Settings(build="Heavenly Strike"))["SeasonalArtifact6"], 0)
 
     def test_enchantment_aliases_in_both_collections(self):
         data = api_player(artifacts={"Book of Prophecy": {"level": 1, "enchanted": True}},
@@ -402,7 +401,7 @@ class ItemTests(unittest.TestCase):
     def test_shared_damage_concentration_and_finite_upgrade(self):
         p = parse_player((Path(__file__).parent / "fixtures/monument-player.json").read_text())
         settings = Settings(build="Heavenly Strike")
-        targets = monument_lifetime_targets(p, settings)
+        targets = monument_experimental_targets(p, settings)
         self.assertGreater(targets["SeasonalArtifact43"], 80)
         self.assertLess(targets["SeasonalArtifact43"], 100)
         self.assertAlmostEqual(sum(v for v in targets.values() if v is not None), 100)
@@ -413,7 +412,7 @@ class ItemTests(unittest.TestCase):
         # At lower progression primary effects matter more: do not hard-code
         # an 80% or 85% rule independent of the player's levels.
         p.monuments = {k: v / 100 if v > 40 else v for k, v in p.monuments.items()}
-        lower = monument_lifetime_targets(p, settings)
+        lower = monument_experimental_targets(p, settings)
         self.assertLess(lower["SeasonalArtifact43"], targets["SeasonalArtifact43"])
 
     def test_shared_damage_curve_matches_supplied_screenshots(self):
