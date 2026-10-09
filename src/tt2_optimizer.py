@@ -10,29 +10,55 @@ from decimal import Decimal
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
 
 
+# Preset weights combine log damage/gold with diminishing-return progression
+# utility. These are explicit preferences, not calibrated prestige-time models.
+OPTIMIZATION_GOALS = {
+    "push": (1.0, 0.0),
+    "speed": (0.35, 3.0),
+    "balanced": (1.0, 1.0),
+}
+GOAL_LIGHTNING_ATTEMPTS = {"push": 60, "speed": 3, "balanced": 15}
+
+
 @dataclass(frozen=True)
 class Settings:
     build: str = "Clan Ship"
     gold: str = "Fairy"
     gold_weight: float = 0.7
     contracts: bool = False
-    lightning_attempts: int = 60
+    lightning_attempts: int | None = None
     qol: bool = False
     active_spells: tuple[str, ...] | None = None
+    optimization_goal: str | None = None
 
     def __post_init__(self):
         if self.build not in BUILDS or self.gold not in GOLD_SOURCES:
             raise ValueError("Unsupported build or gold source.")
         if not math.isfinite(self.gold_weight) or not 0 <= self.gold_weight <= 1:
             raise ValueError("Gold weight must be between 0 and 1.")
-        if not 0 <= self.lightning_attempts <= 1000:
+        if self.lightning_attempts is not None and not 0 <= self.lightning_attempts <= 1000:
             raise ValueError("Lightning attempts must be between 0 and 1000.")
+        if self.optimization_goal is not None and self.optimization_goal not in OPTIMIZATION_GOALS:
+            raise ValueError("Choose push, speed or balanced optimization.")
         if self.active_spells is not None and (len(self.active_spells) > 4 or len(set(self.active_spells)) != len(self.active_spells) or any(s not in catalog()["spell_reductions"] for s in self.active_spells)):
             raise ValueError("Choose up to four distinct supported active spells.")
 
     @property
     def gold_key(self):
         return "HoG" if self.gold == "Heart of Gold" else self.gold
+
+    @property
+    def goal(self):
+        # Preserve callers of the old QoL flag. Explicit presets take precedence.
+        return self.optimization_goal or ("balanced" if self.qol else "push")
+
+    @property
+    def objective_weights(self):
+        return OPTIMIZATION_GOALS[self.goal]
+
+    @property
+    def effective_lightning_attempts(self):
+        return self.lightning_attempts if self.lightning_attempts is not None else GOAL_LIGHTNING_ATTEMPTS[self.goal]
 
 
 def log(value):
@@ -77,7 +103,7 @@ def skill_score(key, level, settings, equipment):
     elif key == "PoisonedBlade":
         score = r * log(1 + a * 10)
     elif key == "CritSkillBoost":
-        score = -r * sum(log(max(1 - a * b**i, 1e-12)) for i in range(settings.lightning_attempts))
+        score = -r * sum(log(max(1 - a * b**i, 1e-12)) for i in range(settings.effective_lightning_attempts))
     elif key == "TerrifyingPact":
         score = r * log(a or 1) + log(b or 1) if settings.contracts else 0
     elif key == "KratosSummon":
@@ -159,9 +185,27 @@ QOL_EFFECTS = {
     "ThunderVolleySkillDuration": ({"Clan Ship"}, 120),
     "StreamOfBladesDuration": ({"Dagger"}, 120),
     "TwilightFairySkillDuration": ({"Heavenly Strike", "Shadow Clone"}, 120),
+    "ShadowCloneSkillAttackRate": ({"Shadow Clone"}, 1),
+    "GoldenMissileSkillCooldown": ({"Gold Gun"}, 30),
+    "PetGoldQTECooldown": (None, 15),
+    "GoldCooldownMultDuringSnap": (None, .1),
+    "TwilightFairySpawnChance": ({"Heavenly Strike", "Shadow Clone"}, .5),
+    "TwilightFairySpawnChanceOnBurstDamage": ({"Heavenly Strike"}, .5),
 }
 QOL_MULTIPLIERS = {"SpecialTitanSpawnChance", "AllManaSourceMult", "MagnumOpusDuration"}
-QOL_REDUCTIONS = {"BurstDamageSkillManaMult", "PetQTECooldownMult", "ShadowCloneAllSkillDurationRate"}
+QOL_REDUCTIONS = {"BurstDamageSkillManaMult", "PetQTECooldownMult", "ShadowCloneAllSkillDurationRate", "GoldCooldownMultDuringSnap"}
+
+
+def utility_category(effect):
+    if "Skip" in effect or effect in {"MultiMonstersMaxCount", "MultiMonsters"}:
+        return "Stage skipping"
+    if "Mana" in effect or "Duration" in effect:
+        return "Mana & spell uptime"
+    if effect in {"PetGoldQTECooldown", "GoldCooldownMultDuringSnap"}:
+        return "Gold collection"
+    if "Spawn" in effect or effect == "FairyCooldown":
+        return "Spawn opportunities"
+    return "Attack cadence"
 
 
 def qol_score(key, level, settings):
@@ -171,16 +215,29 @@ def qol_score(key, level, settings):
     access to tapping/Shadow Clone and Manni spawns; no mana sustainability,
     special-titan frequency or offline duration is simulated.
     """
-    if not settings.qol or not level:
-        return 0.0
+    return sum(speed_components(key, level, settings).values())
+
+
+def speed_components(key, level, settings):
+    """Build-routed progression effects grouped for an inspectable estimate.
+
+    Does not predict seconds. Bonuses use the CSV's additive improvements or
+    reduction multipliers; utility saturates to avoid linear skip/uptime rewards.
+    """
+    if settings.objective_weights[1] == 0 or not level:
+        return {}
     skill = catalog()["skills"][key]
-    score = 0.0
+    components = {}
     for prefix in "ABC":
         effect = skill[f"BonusType{prefix}"]
         if effect not in QOL_EFFECTS:
             continue
         builds, scale = QOL_EFFECTS[effect]
         if builds is not None and settings.build not in builds:
+            continue
+        if effect == "PetGoldQTECooldown" and settings.gold != "Heart of Gold":
+            continue
+        if effect == "GoldCooldownMultDuringSnap" and settings.gold == "Chesterson":
             continue
         value = float(skill[f"{prefix}{level}"])
         if effect in QOL_REDUCTIONS:
@@ -190,8 +247,9 @@ def qol_score(key, level, settings):
             gain = value / baseline - 1
         else:
             gain = value - float(skill[f"{prefix}0"])
-        score += 4 * math.log10(1 + max(0, gain) / scale)
-    return score
+        category = utility_category(effect)
+        components[category] = components.get(category, 0) + 4 * math.log10(1 + max(0, gain) / scale)
+    return components
 
 
 def lower_tier_sp(key, levels):
@@ -249,7 +307,8 @@ def optimize_skills(player, settings=Settings(), mode="respec", reserve=0):
     blocked = set() if settings.contracts else {"ForbiddenContract", "RoyalContract", "TerrifyingPact"}
     damage_scores = {k: [skill_score(k, i, settings, player.equipment) for i in range(s["max"] + 1)] for k, s in skills.items()}
     utility_scores = {k: [qol_score(k, i, settings) for i in range(s["max"] + 1)] for k, s in skills.items()}
-    scores = {k: [d + u for d, u in zip(damage_scores[k], utility_scores[k])] for k in skills}
+    damage_weight, speed_weight = settings.objective_weights
+    scores = {k: [damage_weight * d + speed_weight * u for d, u in zip(damage_scores[k], utility_scores[k])] for k in skills}
 
     def score(tree):
         return sum(scores[k][v] for k, v in tree.items())
@@ -284,6 +343,10 @@ def optimize_skills(player, settings=Settings(), mode="respec", reserve=0):
     initial_score = score(levels)
     initial_damage = sum(damage_scores[k][v] for k, v in levels.items())
     initial_utility = sum(utility_scores[k][v] for k, v in levels.items())
+    initial_components = {}
+    for key, level in levels.items():
+        for category, value in speed_components(key, level, settings).items():
+            initial_components[category] = initial_components.get(category, 0) + value
     while spent(levels) < budget:
         base_cost, base_score = spent(levels), score(levels)
         best = None
@@ -320,10 +383,16 @@ def optimize_skills(player, settings=Settings(), mode="respec", reserve=0):
     errors = validate_allocation(levels, player.max_stage)
     if errors or spent(levels) > budget:
         raise ValueError("Unable to produce a valid allocation: " + " ".join(errors))
+    components = {category: -value for category, value in initial_components.items()}
+    for key, level in levels.items():
+        for category, value in speed_components(key, level, settings).items():
+            components[category] = components.get(category, 0) + value
     return {"levels": levels, "spent": spent(levels), "remaining": player.total_sp - spent(levels),
             "steps": steps, "log_gain": sum(damage_scores[k][v] for k, v in levels.items()) - initial_damage,
             "utility_gain": sum(utility_scores[k][v] for k, v in levels.items()) - initial_utility,
             "objective_gain": score(levels) - initial_score,
+            "optimization_goal": settings.goal, "objective_weights": settings.objective_weights,
+            "speed_components": components,
             "export": {"Version": catalog()["version"], "Skills": levels}}
 
 

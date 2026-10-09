@@ -10,7 +10,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
-from src.tt2_optimizer import Settings, default_spells, optimize_skills, rank_items
+from src.tt2_optimizer import GOAL_LIGHTNING_ATTEMPTS, Settings, default_spells, optimize_skills, rank_items
 from src.tt2_player import ImportError, parse_player
 
 
@@ -201,24 +201,28 @@ def render():
             except ImportError as e:
                 st.error(str(e))
 
-    qol = st.toggle("Include QoL skills", value=False, key="include_qol", help="Balance damage with prestige speed, idle support and mana. Uses approximate utility weights, not a run-time simulation.")
-
     if not player:
         st.caption(f"Game tables {data['version']} · Player data stays in this session")
         return
 
     with st.container(key="reference_inputs"):
         st.subheader("Build settings")
+        goal_labels = {"Maximum damage": "push", "Speed": "speed", "Balanced": "balanced"}
+        goal_label = st.radio("Optimization goal", list(goal_labels), horizontal=True, key="optimization_goal")
+        goal = goal_labels[goal_label]
+        st.caption({"push": "Prioritize pushing power, regardless of speed.",
+                    "speed": "Prioritize prestige speed with damage support.",
+                    "balanced": "Balance pushing power and prestige speed."}[goal])
         build_col, gold_col = st.columns(2)
         build = build_col.selectbox("Damage type", BUILDS)
         gold = gold_col.selectbox("Gold type", GOLD_SOURCES)
         with st.expander("Advanced options"):
             weight = st.slider("Gold weighting", 0.0, 1.0, .7, .05, help="Gold is converted into modeled pushing value with this exponent.")
-            contracts = st.checkbox("Include mana-heavy contracts", value=False)
-            attempts = st.number_input("Lightning Strike attempts per titan", 0, 1000, 60, help="Model assumption; adjust to match your attack rate and time to kill.")
+            contracts = st.checkbox("Include mana-heavy contracts", value=goal == "push", key=f"contracts_{goal}")
+            attempts = st.number_input("Lightning Strike attempts per titan", 0, 1000, GOAL_LIGHTNING_ATTEMPTS[goal], key=f"lightning_attempts_{goal}", help="Preset proc budget: Push 60, Speed 3, Balanced 15. Override to match your play. This is not elapsed time.")
             spell_names = {"BurstDamage":"Heavenly Strike", "CritBoost":"Deadly Strike", "HandOfMidas":"Hand of Midas", "TapBoost":"Fire Sword", "HelperBoost":"War Cry", "ShadowClone":"Shadow Clone", "DualPet":"Dual Summon", "StreamOfBlades":"Blade Stream", "ThunderVolley":"Thunder Ship", "TwilightFairy":"Twilight Fairies", "GoldenMissile":"Golden Missile"}
             active_spells = st.multiselect("Active spells for monument scoring", list(data["spell_reductions"]), default=list(default_spells(build)), max_selections=4, format_func=spell_names.get, key=f"monument_spells_{build}", help="Choose the spells active during your run. This controls spell boosts, Portal of Shadows, and damage/gold per activated spell.")
-    settings = Settings(build, gold, weight, contracts, attempts, qol=qol, active_spells=tuple(active_spells))
+    settings = Settings(build, gold, weight, contracts, attempts, active_spells=tuple(active_spells), optimization_goal=goal)
 
     player = st.session_state.get("tt2_player")
     if not player:
@@ -241,6 +245,7 @@ def render():
         st.subheader("Plan your allocation")
         with st.expander("Planning details"):
             st.caption("Estimates gain per SP with prerequisites. Global optimality, mana demand and prestige speed are not guaranteed.")
+            st.caption("Maximum damage scores damage/gold only. Speed weights progression utility more heavily; Balanced weights both. Speed effects include build-specific skips, cooldowns, attack cadence, spawns, mana and spell uptime. Utility is an estimate, not seconds per prestige; titan density, starting stage, kill thresholds and player timing are not simulated.")
         c1, c2 = st.columns([3, 1])
         mode_label = c1.radio("Planning mode", ["Full respec", "Spend available points"], horizontal=True)
         mode = "respec" if mode_label == "Full respec" else "spend"
@@ -265,9 +270,11 @@ def render():
             st.success(f"Valid plan · {result['spent']:,} SP allocated · {result['remaining']:,} SP unspent")
             if result["remaining"] > reserve:
                 st.caption("Remaining SP can be saved or spent on utility skills.")
-            st.caption(f"Modeled gain: +{result['log_gain']:.3f} log10 · {build} / {gold}")
-            if qol:
-                st.caption(f"QoL utility gain: +{result['utility_gain']:.3f} · approximate")
+            st.caption(f"{goal_label} · Damage/gold gain: +{result['log_gain']:.3f} log10")
+            if settings.objective_weights[1] > 0:
+                st.caption(f"Speed utility gain: +{result['utility_gain']:.3f} · estimated")
+                with st.expander("Speed breakdown"):
+                    st.dataframe(pd.DataFrame([{"Factor": k, "Utility gain": round(v, 3)} for k, v in result["speed_components"].items() if v > 0]), hide_index=True, width="stretch")
             render_skill_tree(result["levels"], player.skills)
             export = {
                 "Version": data["version"],

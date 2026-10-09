@@ -11,14 +11,33 @@ In Tap Titans 2, open Settings → Services → Export. Paste the complete JSON 
 
 Choose a damage type and gold source, then plan a full respec or spend available points. Optimized ranks appear in a compact six-tree grid. Copy the build JSON back into the game.
 
-Enable **Include QoL skills** to balance the existing damage/gold objective with
-prestige speed, idle multi-spawns, mana support and build-specific skips and spell
-uptime. Disabled preserves the original scoring. Utility uses pinned skill effects
-and explicit diminishing-return weights (`4 × log10(1 + effect gain / scale)`)
-in `src/tt2_optimizer.py`. Weights are heuristic preferences, not measured damage
-or run times. The model does not simulate mana demand, special-titan frequency,
-offline progress or a fastest possible prestige. Spending mode retains owned ranks;
-both modes still enforce SP budgets, stage locks and prerequisites.
+Choose a skill **Optimization goal**:
+
+- **Maximum damage:** scores modeled damage/gold only, with no speed utility reward.
+- **Speed:** prioritizes progression utility with damage support (`0.35 × damage/gold score + 3 × speed utility`).
+- **Balanced:** gives damage/gold and speed utility equal objective weights (`damage/gold score + speed utility`).
+
+The UI initially enables mana-heavy contracts for Maximum damage and disables them
+for Speed/Balanced. Each preset's Advanced options can override this preference.
+Lightning Strike's proc budget defaults to 60 attempts for Maximum damage, 3 for
+Speed and 15 for Balanced; each preset retains its own override. These are assumed
+proc counts, not measured waiting times. Explicit Python `lightning_attempts`
+values override the goal default.
+
+Speed utility uses pinned skill effects and diminishing returns
+(`4 × log10(1 + effect gain / scale)`) for build-specific skips, attack cadence,
+cooldown improvements, spawn opportunities, mana support and spell uptime. Gold
+cooldown bonuses are routed to the chosen gold source. The speed breakdown reports
+the raw utility gained by category; it does not report seconds or damage multipliers.
+These weights are explicit heuristic preferences. The model does not simulate a
+full prestige: starting stage, titan density, damage thresholds, mana consumption,
+spawn frequencies and player reaction times are absent. Speed cannot guarantee a
+fastest prestige, and Balanced is a tradeoff rather than simultaneous independent
+maxima. Changing the goal invalidates the displayed skill plan; optimize again.
+Spending mode retains owned ranks; every goal enforces SP budgets, stage locks and
+prerequisites. Legacy Python callers with `qol=True` use Balanced unless an explicit
+`optimization_goal` overrides it. Artifact/monument priorities retain their primary
+effect model; these presets choose skill allocations.
 
 Skill planning uses a prerequisite-aware greedy heuristic, not a guaranteed global optimum. Artifact priorities include additive artifact damage, price estimates and affordability. Monument priorities use build-relevant primary gains and a relative cost curve; off-build monuments are unranked. Monument cards show estimated target shares of lifetime investment, while next-level efficiency remains separate in the comparison table. They are not exact spending plans. Skill/artifact tables are pinned to 8.3.0; monument data uses the alternate season matching the supplied screenshots/export. See THIRD_PARTY_NOTICES.md for sources and model limits.
 

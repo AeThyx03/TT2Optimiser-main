@@ -86,6 +86,54 @@ class ImportTests(unittest.TestCase):
 
 
 class SkillTests(unittest.TestCase):
+    def test_optimization_goal_validation_and_legacy_qol(self):
+        self.assertEqual(Settings().goal, "push")
+        self.assertEqual(Settings(qol=True).goal, "balanced")
+        self.assertEqual(Settings(qol=True, optimization_goal="push").objective_weights, (1, 0))
+        self.assertEqual(Settings(optimization_goal="speed").effective_lightning_attempts, 3)
+        self.assertEqual(Settings(optimization_goal="balanced").effective_lightning_attempts, 15)
+        self.assertEqual(Settings(optimization_goal="speed", lightning_attempts=20).effective_lightning_attempts, 20)
+        with self.assertRaisesRegex(ValueError, "push, speed or balanced"):
+            Settings(optimization_goal="fastest")
+
+    def test_goals_change_allocation_and_report_objective_correctly(self):
+        p = parse_player(DEMO.read_text())
+        results = {g: optimize_skills(p, Settings(build="Heavenly Strike", optimization_goal=g), reserve=10)
+                   for g in ("push", "speed", "balanced")}
+        self.assertEqual(len({json.dumps(r["levels"], sort_keys=True) for r in results.values()}), 3)
+        self.assertGreater(results["push"]["log_gain"], results["balanced"]["log_gain"])
+        self.assertGreater(results["balanced"]["log_gain"], results["speed"]["log_gain"])
+        self.assertGreater(results["speed"]["utility_gain"], results["balanced"]["utility_gain"])
+        self.assertEqual(results["push"]["utility_gain"], 0)
+        for goal, r in results.items():
+            self.assertEqual(r["optimization_goal"], goal)
+            d, u = r["objective_weights"]
+            self.assertAlmostEqual(r["objective_gain"], d*r["log_gain"] + u*r["utility_gain"])
+            self.assertAlmostEqual(sum(r["speed_components"].values()), r["utility_gain"])
+            self.assertLessEqual(r["spent"], p.total_sp-10)
+            self.assertFalse(validate_allocation(r["levels"], p.max_stage))
+
+    def test_speed_goals_preserve_owned_ranks_for_every_build(self):
+        p = parse_player(api_player(total_skill_points=300))
+        for build in BUILDS:
+            for goal in ("speed", "balanced"):
+                with self.subTest(build=build, goal=goal):
+                    r = optimize_skills(p, Settings(build=build, optimization_goal=goal), "spend", reserve=10)
+                    self.assertLessEqual(r["spent"], 290)
+                    self.assertFalse(validate_allocation(r["levels"], p.max_stage))
+                    for key, rank in p.skills.items():
+                        self.assertGreaterEqual(r["levels"][key], rank)
+
+    def test_extra_speed_effects_route_to_the_correct_build_and_gold(self):
+        sc = Settings(build="Shadow Clone", optimization_goal="speed")
+        hs = Settings(build="Heavenly Strike", optimization_goal="speed")
+        self.assertGreater(qol_score("CloneDmg", 5, sc), 0)
+        self.assertEqual(qol_score("CloneDmg", 5, hs), 0)
+        self.assertGreater(qol_score("ExplosivesExpert", 5, Settings(build="Gold Gun", optimization_goal="speed")), 0)
+        self.assertEqual(qol_score("ExplosivesExpert", 5, hs), 0)
+        self.assertEqual(qol_score("PetGoldQTE", 20, hs), 0)
+        self.assertGreater(qol_score("PetGoldQTE", 20, Settings(gold="Heart of Gold", optimization_goal="speed")), 0)
+
     def test_qol_routes_utility_without_changing_damage_score(self):
         for build in BUILDS:
             on, off = Settings(build=build, qol=True), Settings(build=build)

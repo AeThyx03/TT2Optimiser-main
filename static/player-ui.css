@@ -62,3 +62,6 @@ button:focus-visible,textarea:focus-visible {outline:2px solid var(--lab-mint);o
 [data-testid="stCaptionContainer"] p {color:#a9b5c5;opacity:1;}
 .collection-card.unranked .item-badge {color:#c0c9d6;background:#2a303b;border-color:#46505e;}
 [data-testid="stAlert"] p {color:#deebf6;}
+.st-key-optimization_goal [role="radiogroup"] {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%;}
+.st-key-optimization_goal label[data-baseweb="radio"] {min-height:64px;margin:0;padding:10px 12px;background:#111720;border:1px solid #3c4859;border-radius:9px;}
+.st-key-optimization_goal label[data-baseweb="radio"]:has(input:checked) {background:#332d1e;border-color:#b48d42;}
