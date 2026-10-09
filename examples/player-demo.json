@@ -1,0 +1,25 @@
+{
+  "version": "8.3.0",
+  "playerStats": {
+    "Player Name": "Demo Sword Master",
+    "Max Prestige Stage": 125000,
+    "Skill Points Owned": 1500,
+    "Relics": "1.25e40",
+    "Mementos": "2.5e15"
+  },
+  "skillTree": {"AllHelperDmg": 2, "ClanShipDmg": 1},
+  "artifacts": {
+    "Artifact22": "1e8",
+    "Artifact20": "2e7",
+    "Artifact29": "1e6",
+    "Artifact35": "3e7",
+    "Artifact30": "1e7",
+    "Artifact38": "1e6",
+    "Artifact44": "2e7",
+    "Artifact45": "1e6",
+    "Artifact98": "1e6",
+    "Artifact99": "1e6"
+  },
+  "seasonalArtifacts": {"SeasonalArtifact2": 15, "SeasonalArtifact10": 12, "SeasonalArtifact18": 10},
+  "equipmentSets": ["ElectricWarlord"]
+}

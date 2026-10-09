@@ -1,0 +1,123 @@
+{
+  "BurstDamage": {
+    "Clan Ship": 0,
+    "Shadow Clone": 0,
+    "Heavenly Strike": 1,
+    "Pet": 0,
+    "Dagger": 0,
+    "Gold Gun": 0,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "CritBoost": {
+    "Clan Ship": 0.5,
+    "Shadow Clone": 0.6,
+    "Heavenly Strike": 0,
+    "Pet": 0.7,
+    "Dagger": 0.75,
+    "Gold Gun": 0.6,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "HandOfMidas": {
+    "Clan Ship": null,
+    "Shadow Clone": null,
+    "Heavenly Strike": null,
+    "Pet": null,
+    "Dagger": null,
+    "Gold Gun": null,
+    "Fairy": 0.6,
+    "HoG": 0.6,
+    "Chesterson": 1
+  },
+  "TapBoost": {
+    "Clan Ship": 0,
+    "Shadow Clone": 0.6,
+    "Heavenly Strike": 1,
+    "Pet": 1,
+    "Dagger": 1,
+    "Gold Gun": 0.45,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "HelperBoost": {
+    "Clan Ship": 1,
+    "Shadow Clone": 0.6,
+    "Heavenly Strike": 0.5,
+    "Pet": 0.5,
+    "Dagger": 0.5,
+    "Gold Gun": 0.9,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "ShadowClone": {
+    "Clan Ship": 0,
+    "Shadow Clone": 1,
+    "Heavenly Strike": 0,
+    "Pet": 0,
+    "Dagger": 0,
+    "Gold Gun": 0,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "DualPet": {
+    "Clan Ship": 0,
+    "Shadow Clone": 0,
+    "Heavenly Strike": 0,
+    "Pet": 1,
+    "Dagger": 0,
+    "Gold Gun": 0,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "StreamOfBlades": {
+    "Clan Ship": 0,
+    "Shadow Clone": 0,
+    "Heavenly Strike": 0,
+    "Pet": 0,
+    "Dagger": 1,
+    "Gold Gun": 0,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "ThunderVolley": {
+    "Clan Ship": 1,
+    "Shadow Clone": 0,
+    "Heavenly Strike": 0,
+    "Pet": 0,
+    "Dagger": 0,
+    "Gold Gun": 0,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "TwilightFairy": {
+    "Clan Ship": 0,
+    "Shadow Clone": 1,
+    "Heavenly Strike": 1,
+    "Pet": 0,
+    "Dagger": 0,
+    "Gold Gun": 0,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  },
+  "GoldenMissile": {
+    "Clan Ship": 0,
+    "Shadow Clone": 0,
+    "Heavenly Strike": 0,
+    "Pet": 0,
+    "Dagger": 0,
+    "Gold Gun": 1,
+    "Fairy": null,
+    "HoG": null,
+    "Chesterson": null
+  }
+}
