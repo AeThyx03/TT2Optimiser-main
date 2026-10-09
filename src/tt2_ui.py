@@ -21,12 +21,6 @@ def skill_icon(key):
     return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
 
-@lru_cache(maxsize=1)
-def background_image():
-    path = Path(__file__).resolve().parents[1] / "static" / "tt2-background.png"
-    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
-
-
 @lru_cache(maxsize=256)
 def item_icon(key):
     path = Path(__file__).resolve().parents[1] / "static" / "item-icons" / f"{key}.png"
@@ -128,8 +122,8 @@ def render_skill_tree(levels, current_levels):
     ]
     skills = catalog()["skills"]
     st.markdown("""<style>
-      .skill-board {max-width:540px;margin:1rem auto;background:#17191c;padding:2px;border:2px solid #111;border-radius:6px;overflow:hidden}
-      .skill-summary {background:#d3d3d3;color:#111;text-align:center;padding:9px 3px;font:500 clamp(13px,3vw,20px) sans-serif;border-bottom:2px solid #111}
+      .skill-board {max-width:540px;margin:1rem auto;background:#131820;padding:8px;border:1px solid #45505e;border-radius:14px;overflow:hidden}
+      .skill-summary {background:#202731;color:#f5d685;text-align:center;padding:12px 3px;margin-bottom:8px;border-radius:8px;font:600 clamp(13px,3vw,18px) sans-serif;border-bottom:1px solid #46505c}
       .skill-tree-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px}
       .skill-class {min-width:0;--tree:#999}
       .skill-class-head {display:grid;grid-template-columns:1fr 2fr;gap:2px;margin-bottom:2px;color:#111;font:500 clamp(13px,3vw,21px) sans-serif}
@@ -179,38 +173,11 @@ def render_skill_tree(levels, current_levels):
 
 def render():
     st.set_page_config(page_title="TT2 · Player Optimizer", page_icon="⚔️", layout="wide")
-    st.markdown("""<style>
-      .block-container {max-width:1120px;padding-top:1.45rem;padding-bottom:3rem;padding-left:clamp(1rem,3vw,2.5rem);padding-right:clamp(1rem,3vw,2.5rem);}
-      h1 {letter-spacing:-.045em;text-align:left;margin:.25rem 0 .2rem;font-size:clamp(2rem,4vw,3rem);}
-      .eyebrow {font-size:.76rem;letter-spacing:.16em;font-weight:800;color:#91a0ff;text-align:left;text-transform:uppercase;}
-      .hero-subtitle {text-align:left;color:#c4c6ce;margin:0 0 1.35rem;font-size:1.02rem;}
-      [data-testid="stAppViewContainer"] {background:radial-gradient(ellipse at top left,#202b43 0%,#111827 55%,#0f172a 100%);}
-      [data-testid="stHeader"] {background:#202226;}
-      [data-testid="stMetric"] {background:#182235;border:1px solid #ffffff20;border-radius:10px;padding:16px;}
-      [data-testid="stMetricLabel"] {font-size:.85rem;}
-      [data-testid="stSidebar"] {background:#202226;border-right:1px solid #ffffff18;}
-      [data-testid="stButton"] button,[data-testid="stDownloadButton"] button {border-radius:8px;border-color:#ffffff30;}
-      [data-testid="stButton"] button[kind="primary"] {background:#5f73e8;border-color:#5f73e8;}
-      div[data-testid="stTabs"] button {font-weight:600;}
-      .st-key-player_metrics [data-testid="stHorizontalBlock"] {flex-wrap:wrap;}
-      .st-key-player_metrics [data-testid="stColumn"] {min-width:135px;flex:1 1 135px;}
-      [data-testid="stMetricValue"] {font-size:1.65rem;}
-      .st-key-reference_inputs {max-width:1120px;margin:.2rem auto 1rem;padding:1rem 1.2rem;border:1px solid #ffffff20;border-radius:14px;background:#182235;box-shadow:0 14px 35px #0002;}
-      .st-key-reference_inputs h3 {margin:.1rem 0 .7rem;text-align:left;}
-      .st-key-reference_inputs [data-testid="stWidgetLabel"] p {color:#e4e7ee;font-weight:650;}
-      .st-key-reference_inputs [data-testid="stExpander"] {margin-top:.8rem;background:#25272b;border:1px solid #ffffff20;border-radius:10px;}
-      .st-key-player_import {max-width:1120px;margin:.2rem auto 1.4rem;padding:1.1rem 1.2rem 1rem;border:1px solid #ffffff20;border-radius:14px;background:#2b2e34;box-shadow:0 12px 30px #0002;}
-      .st-key-player_import h3 {margin:.05rem 0 .15rem;}
-      .st-key-player_import [data-testid="stTextArea"] textarea {font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.82rem;background:#202226;border-color:#ffffff26;}
-      .st-key-player_import form button {width:100%;min-height:2.8rem;font-weight:700;}
-      [data-testid="stExpander"] {border-color:#ffffff24;border-radius:10px;}
-      [data-testid="stDataFrame"] {border:1px solid #ffffff1c;border-radius:8px;overflow:hidden;}
-    </style>""", unsafe_allow_html=True)
     theme = Path(__file__).resolve().parents[1] / "static" / "player-ui.css"
-    css = theme.read_text(encoding="utf-8").replace("var(--tt2-background)", f"url('{background_image()}')")
+    css = theme.read_text(encoding="utf-8")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
     data = catalog()
-    st.markdown('<div class="eyebrow">TAP TITANS 2</div>', unsafe_allow_html=True)
+    st.markdown('<div class="eyebrow"><span class="brand-sigil">⚔</span> TAP TITANS 2 <span class="brand-tag">BUILD LAB</span></div>', unsafe_allow_html=True)
     st.title("Player optimizer")
     st.markdown('<p class="hero-subtitle">Paste your in-game export, choose your build, and plan your next skill upgrades.</p>', unsafe_allow_html=True)
     player = st.session_state.get("tt2_player")
@@ -307,8 +274,8 @@ def render():
             copy_col, _ = st.columns([1, 3])
             with copy_col:
                 components.html(f"""
-                  <button id="copy-build" style="background:#6276ee;color:white;border:0;border-radius:7px;padding:10px 16px;font:600 14px sans-serif;cursor:pointer;width:100%">Copy build JSON</button>
-                  <span id="copy-status" role="status" style="display:block;color:#91bf7f;font:12px sans-serif;padding-top:4px"></span>
+                  <button id="copy-build" style="background:#e9b949;color:#171b23;border:1px solid #f7d477;border-radius:9px;padding:10px 16px;font:600 14px sans-serif;cursor:pointer;width:100%">Copy build JSON</button>
+                  <span id="copy-status" role="status" style="display:block;color:#71d7ba;font:12px sans-serif;padding-top:4px"></span>
                   <script>
                     const buildText = {json.dumps(build_json)};
                     const button = document.getElementById('copy-build');
