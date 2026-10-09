@@ -86,22 +86,13 @@ def inventory(player, settings, kind):
                 st.caption(f"Your current balance cannot buy a ranked next level. Save more {currency}.")
     else:
         st.info("No upgrade can be ranked from this collection: check caps, season activity and supported effects.")
-    search = st.text_input(f"Search {kind}", key=f"search_{kind}", placeholder="Name, effect, or ID")
-    only = st.checkbox("Show ranked upgrades only", key=f"ranked_{kind}")
-    if kind == "monuments":
-        # Clear an old checked filter from sessions created before prices were
-        # withheld, so a disabled control cannot hide every monument.
-        st.session_state["affordable_monuments"] = False
-    affordable = False if kind == "monuments" else st.checkbox("Show affordable upgrades only", key=f"affordable_{kind}", disabled=player.relics is None)
-    visible = [r for r in rows if (not only or r["Priority"] is not None) and (not affordable or r["Affordable"] is True) and search.lower() in (r["Name"] + r["Effect"] + r["ID"]).lower()]
+    visible = rows
     display = [{field: r[field] for field in ("Priority", "Name", "Level", "Relative efficiency %", "Next cost (estimate)", "Affordable", "Gain log10 (estimate)", "Primary gain log10 (estimate)", "Collection gain log10 (estimate)", "Enchanted", "Status", "Effect", "ID")} for r in visible]
     if kind == "monuments":
         for record, row in zip(display, visible):
             record["Target lifetime mementos % (estimate)"] = row["Target lifetime mementos % (estimate)"]
             record["Effect description"] = row["Effect description"]
             record["Next-level efficiency % of best"] = record.pop("Relative efficiency %")
-    if not visible:
-        st.info("No items match these filters.")
     # The featured recommendation is already visible above the collection.
     card_rows = [r for r in visible if not ranked or r["ID"] != ranked[0]["ID"]]
     for row in card_rows:
@@ -123,7 +114,6 @@ def render():
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
     data = catalog()
     player = st.session_state.get("tt2_player")
-    st.markdown('<div class="forge-brand"><span>✦</span><div>TITAN FORGE<small>TAP TITANS 2</small></div></div>', unsafe_allow_html=True)
     player = st.session_state.get("tt2_player")
     with st.expander("Replace player JSON" if player else "Paste player JSON", expanded=not bool(player)):
         if player and st.button("Clear imported player"):
@@ -176,9 +166,6 @@ def render():
         cols[4].metric("Monuments", sum(v > 0 for v in player.monuments.values()))
     skills_tab, artifact_tab, monument_tab = st.tabs(["Skills", "Artifacts", "Monuments"])
     with skills_tab:
-        with st.expander("Planning details"):
-            st.caption("Estimates gain per SP with prerequisites. Global optimality, mana demand and prestige speed are not guaranteed.")
-            st.caption("Maximum damage scores damage/gold only. Speed weights progression utility more heavily; Balanced weights both. Speed effects include build-specific skips, cooldowns, attack cadence, spawns, mana and spell uptime. Utility is an estimate, not seconds per prestige; titan density, starting stage, kill thresholds and player timing are not simulated.")
         c1, c2 = st.columns([3, 1])
         mode_label = c1.radio("Planning mode", ["Full respec", "Spend available points"], horizontal=True)
         mode = "respec" if mode_label == "Full respec" else "spend"

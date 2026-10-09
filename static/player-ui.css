@@ -6,9 +6,6 @@
 h1{font-size:clamp(2rem,3.5vw,3.2rem);font-weight:800;letter-spacing:-.055em;line-height:1.15;color:var(--text);padding-bottom:1.4rem}
 h2,h3{letter-spacing:-.025em;color:var(--text)}
 h3{font-size:1.25rem;font-weight:700}
-.forge-brand{display:flex;align-items:center;gap:12px;font-size:1.1rem;font-weight:800;letter-spacing:.08em;margin-bottom:1.8rem;color:var(--text)}
-.forge-brand>span{display:grid;place-items:center;width:42px;height:48px;background:#2d2445;clip-path:polygon(50% 0,100% 20%,100% 80%,50% 100%,0 80%,0 20%);color:var(--accent);font-size:2rem}
-.forge-brand small{display:block;color:var(--muted);font-size:.53rem;letter-spacing:.12em;margin-top:4px}
 .st-key-reference_inputs{border-top:1px solid var(--line);padding-top:1.2rem;margin-top:1.3rem}
 [data-testid="stCaptionContainer"] p{color:var(--muted);line-height:1.5;opacity:1}
 [data-testid="stWidgetLabel"] p{color:#c8cee0;font-size:.8rem;font-weight:600}

@@ -21,7 +21,7 @@ class PlayerUITests(unittest.TestCase):
         self.assertIn("0.00% target of lifetime mementos", rosabella)
         self.assertNotIn("companions", rosabella)
 
-    def test_collection_priorities_and_filters(self):
+    def test_collection_priorities(self):
         app = self.app()
         payload = json.loads((ROOT / "tests/fixtures/monument-player.json").read_text())
         payload["artifacts"] = {"Artifact20": 10}
@@ -42,9 +42,8 @@ class PlayerUITests(unittest.TestCase):
         self.assertNotIn("Current lifetime share", glassbone)
         self.assertEqual(sum('The Glassbone Menagerie</h4>' in x for x in cards), 1)
         self.assertFalse(any(x.key == "affordable_monuments" for x in app.checkbox))
-        app.text_input(key="search_monuments").input("no matching monument").run()
-        self.assertFalse(app.exception)
-        self.assertTrue(any("No items match" in x.value for x in app.info))
+        self.assertFalse(any(x.key in ("search_monuments", "search_artifacts") for x in app.text_input))
+        self.assertFalse(any(x.label in ("Show ranked upgrades only", "Show affordable upgrades only") for x in app.checkbox))
 
     def app(self):
         return AppTest.from_file(str(ROOT / "player_optimizer.py"), default_timeout=30).run()
