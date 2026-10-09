@@ -1,10 +1,2 @@
 streamlit>=1.50
-pulp
 pandas
-graphviz
-google-genai
-gspread
-google-auth
-plotly
-openpyxl
-requests>=2.31

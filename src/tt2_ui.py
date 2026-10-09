@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from src.tt2_data import BUILDS, GOLD_SOURCES, catalog, table
+from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
 from src.tt2_optimizer import Settings, optimize_skills, rank_items, validate_allocation
 from src.tt2_player import ImportError, parse_player
 
@@ -42,70 +42,65 @@ def render_skill_tree(levels, current_levels):
     ]
     skills = catalog()["skills"]
     st.markdown("""<style>
-      .skill-summary {display:flex;flex-wrap:wrap;justify-content:center;gap:.55rem;margin:.5rem 0 1rem}
-      .skill-summary span {padding:.45rem .75rem;background:#303238;border:1px solid #ffffff25;border-radius:7px;font-weight:650}
-      .skill-tree-grid {display:grid;grid-template-columns:repeat(3,minmax(230px,1fr));gap:.8rem;align-items:start}
-      .skill-class {--tree:#999;background:#25272b;border:1px solid #ffffff25;border-radius:8px;overflow:hidden;min-width:0}
-      .skill-class-head {display:flex;align-items:center;justify-content:space-between;padding:.5rem .65rem;background:var(--tree);color:#17191c;font-weight:750;border-bottom:2px solid #111}
-      .skill-class-head small {font-size:.78rem;font-weight:650;opacity:.85}
-      .skill-nodes {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;background:#111;padding:2px}
-      .skill-node {height:84px;position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:.35rem;background-color:color-mix(in srgb,var(--tree) 24%,#17191c);background-size:cover;background-position:center;color:#fff;text-shadow:0 1px 2px #000;overflow:hidden}
-      .skill-node.empty {opacity:.42}
-      .skill-node-name {position:absolute;left:0;right:0;bottom:0;padding:.2rem .24rem;background:#101216b8;font-size:.58rem;line-height:1.1;font-weight:650;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-      .skill-node-level {position:absolute;inset:0;display:grid;place-items:center;font-size:1.65rem;font-weight:900;line-height:1;color:#fff;-webkit-text-stroke:1px #151515;text-shadow:2px 2px 2px #111,0 0 4px #111;pointer-events:none}
-      .skill-node-current {position:absolute;right:.2rem;top:.2rem;font-size:.57rem;background:#111d;padding:.08rem .2rem;border-radius:3px;color:#f2f2f2;z-index:1}
-      @media(max-width:900px){.skill-tree-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-      @media(max-width:560px){.skill-tree-grid{grid-template-columns:1fr}.skill-node{height:74px}}
+      .skill-board {max-width:540px;margin:1rem auto;background:#17191c;padding:2px;border:2px solid #111;border-radius:6px;overflow:hidden}
+      .skill-summary {background:#d3d3d3;color:#111;text-align:center;padding:9px 3px;font:500 clamp(13px,3vw,20px) sans-serif;border-bottom:2px solid #111}
+      .skill-tree-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px}
+      .skill-class {min-width:0;--tree:#999}
+      .skill-class-head {display:grid;grid-template-columns:1fr 2fr;gap:2px;margin-bottom:2px;color:#111;font:500 clamp(13px,3vw,21px) sans-serif}
+      .skill-class-head span {background:var(--tree);text-align:center;padding:8px 0;border-radius:5px}
+      .skill-nodes {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;background:#17191c}
+      .skill-node {aspect-ratio:1;position:relative;background:var(--tree);border-radius:5px;overflow:hidden}
+      .skill-node img {width:100%;height:100%;object-fit:cover;display:block}
+      .skill-node.empty img {opacity:.25}
+      .skill-node-level {position:absolute;inset:0;display:grid;place-items:center;font:bold clamp(16px,4.6vw,29px) Arial,sans-serif;color:white;-webkit-text-stroke:1px #111;paint-order:stroke fill;text-shadow:2px 2px 1px #000,-2px -2px 1px #000,2px -2px 1px #000,-2px 2px 1px #000}
     </style>""", unsafe_allow_html=True)
     sp_by_class = {}
     for key, level in levels.items():
         skill = skills[key]
         sp_by_class[skill["Class"]] = sp_by_class.get(skill["Class"], 0) + skill["costs"][level]
     total_sp = sum(sp_by_class.values())
-    st.markdown(
-        '<div class="skill-summary">'
-        f'<span>Planned: {total_sp:,} SP</span>'
-        f'<span>Current: {sum(skills[k]["costs"][v] for k, v in current_levels.items()):,} SP</span>'
-        f'<span>Remaining: {max(0, int(st.session_state.get("tt2_player").total_sp) - total_sp):,} SP</span>'
-        '</div>', unsafe_allow_html=True,
-    )
+    available = st.session_state["tt2_player"].total_sp
+    summary = f'{total_sp} / {available} ({available - total_sp} SP remaining)'
     panels = []
     for class_key, label, short, color in classes:
         rows = sorted((s for s in skills.values() if s["Class"] == class_key), key=lambda s: int(s["Slot"]))
         class_sp = sp_by_class.get(class_key, 0)
         nodes = []
-        for skill in rows:
+        by_slot = {1 if int(skill["Slot"]) == 0 else int(skill["Slot"]) + 2: skill for skill in rows}
+        for slot in range(15):
+            skill = by_slot.get(slot)
+            if skill is None:
+                nodes.append('<div class="skill-node" aria-hidden="true"></div>')
+                continue
             key = skill["TalentID"]
             level = int(levels.get(key, 0))
             current = int(current_levels.get(key, 0))
             name = html.escape(skill["Name"])
             title = html.escape(f'{skill["Name"]} · current {current} → planned {level} · max {skill["max"]}')
-            current_badge = f'<span class="skill-node-current">{current} →</span>' if current != level else ""
+            rank = f'<span class="skill-node-level">{level}</span>' if level else ""
             nodes.append(
-                f'<div class="skill-node{" empty" if not level else ""}" title="{title}" '
-                f'style="--tree:{color};background-image:linear-gradient(rgba(14,15,18,.38),rgba(14,15,18,.48)),url(\'/app/static/skill-icons/{key}.png\')">'
-                f'<span class="skill-node-name">{name}</span>'
-                f'{current_badge}'
-                f'<span class="skill-node-level">{level}</span></div>'
+                f'<div class="skill-node{ " empty" if not level else ""}" title="{title}" aria-label="{title}">'
+                f'<img src="/app/static/skill-icons/{key}.png" alt="{name}" loading="lazy">'
+                f'{rank}</div>'
             )
         panels.append(
             f'<section class="skill-class" style="--tree:{color}"><header class="skill-class-head">'
-            f'<span>{short} · {html.escape(label)}</span><small>{class_sp:,} SP</small></header>'
+            f'<span title="{html.escape(label)}">{short}</span><span>{class_sp}</span></header>'
             f'<div class="skill-nodes">{"".join(nodes)}</div></section>'
         )
-    st.markdown(f'<div class="skill-tree-grid">{"".join(panels)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="skill-board"><div class="skill-summary">{summary}</div><div class="skill-tree-grid">{"".join(panels)}</div></div>', unsafe_allow_html=True)
 
 
 def render():
     st.set_page_config(page_title="TT2 · Player Optimizer", page_icon="⚔️", layout="wide")
     st.markdown("""<style>
-      .block-container {max-width:1280px;padding-top:1.45rem;padding-bottom:3rem;padding-left:clamp(1rem,3vw,2.5rem);padding-right:clamp(1rem,3vw,2.5rem);}
-      h1 {letter-spacing:-.045em;text-align:center;margin:.25rem 0 .2rem;font-size:clamp(2rem,4vw,3rem);}
-      .eyebrow {font-size:.76rem;letter-spacing:.16em;font-weight:800;color:#91a0ff;text-align:center;text-transform:uppercase;}
-      .hero-subtitle {text-align:center;color:#c4c6ce;margin:0 0 1.35rem;font-size:1.02rem;}
-      [data-testid="stAppViewContainer"] {background:linear-gradient(180deg,#292b30 0%,#24262a 45%,#202226 100%);}
+      .block-container {max-width:1120px;padding-top:1.45rem;padding-bottom:3rem;padding-left:clamp(1rem,3vw,2.5rem);padding-right:clamp(1rem,3vw,2.5rem);}
+      h1 {letter-spacing:-.045em;text-align:left;margin:.25rem 0 .2rem;font-size:clamp(2rem,4vw,3rem);}
+      .eyebrow {font-size:.76rem;letter-spacing:.16em;font-weight:800;color:#91a0ff;text-align:left;text-transform:uppercase;}
+      .hero-subtitle {text-align:left;color:#c4c6ce;margin:0 0 1.35rem;font-size:1.02rem;}
+      [data-testid="stAppViewContainer"] {background:radial-gradient(ellipse at top left,#202b43 0%,#111827 55%,#0f172a 100%);}
       [data-testid="stHeader"] {background:#202226;}
-      [data-testid="stMetric"] {background:#2d3035;border:1px solid #ffffff20;border-radius:10px;padding:16px;}
+      [data-testid="stMetric"] {background:#182235;border:1px solid #ffffff20;border-radius:10px;padding:16px;}
       [data-testid="stMetricLabel"] {font-size:.85rem;}
       [data-testid="stSidebar"] {background:#202226;border-right:1px solid #ffffff18;}
       [data-testid="stButton"] button,[data-testid="stDownloadButton"] button {border-radius:8px;border-color:#ffffff30;}
@@ -114,11 +109,11 @@ def render():
       .st-key-player_metrics [data-testid="stHorizontalBlock"] {flex-wrap:wrap;}
       .st-key-player_metrics [data-testid="stColumn"] {min-width:135px;flex:1 1 135px;}
       [data-testid="stMetricValue"] {font-size:1.65rem;}
-      .st-key-reference_inputs {max-width:940px;margin:.2rem auto 1rem;padding:1rem 1.2rem;border:1px solid #ffffff20;border-radius:14px;background:linear-gradient(145deg,#30333a,#282a30);box-shadow:0 14px 35px #0002;}
+      .st-key-reference_inputs {max-width:1120px;margin:.2rem auto 1rem;padding:1rem 1.2rem;border:1px solid #ffffff20;border-radius:14px;background:#182235;box-shadow:0 14px 35px #0002;}
       .st-key-reference_inputs h3 {margin:.1rem 0 .7rem;text-align:left;}
       .st-key-reference_inputs [data-testid="stWidgetLabel"] p {color:#e4e7ee;font-weight:650;}
       .st-key-reference_inputs [data-testid="stExpander"] {margin-top:.8rem;background:#25272b;border:1px solid #ffffff20;border-radius:10px;}
-      .st-key-player_import {max-width:940px;margin:.2rem auto 1.4rem;padding:1.1rem 1.2rem 1rem;border:1px solid #ffffff20;border-radius:14px;background:#2b2e34;box-shadow:0 12px 30px #0002;}
+      .st-key-player_import {max-width:1120px;margin:.2rem auto 1.4rem;padding:1.1rem 1.2rem 1rem;border:1px solid #ffffff20;border-radius:14px;background:#2b2e34;box-shadow:0 12px 30px #0002;}
       .st-key-player_import h3 {margin:.05rem 0 .15rem;}
       .st-key-player_import [data-testid="stTextArea"] textarea {font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.82rem;background:#202226;border-color:#ffffff26;}
       .st-key-player_import form button {width:100%;min-height:2.8rem;font-weight:700;}
@@ -126,32 +121,29 @@ def render():
       [data-testid="stDataFrame"] {border:1px solid #ffffff1c;border-radius:8px;overflow:hidden;}
     </style>""", unsafe_allow_html=True)
     data = catalog()
-    st.markdown('<div class="eyebrow">TAP TITANS 2 / BUILD WORKSHOP</div>', unsafe_allow_html=True)
-    st.title("Skill Tree Optimizer")
+    st.markdown('<div class="eyebrow">TAP TITANS 2</div>', unsafe_allow_html=True)
+    st.title("Player optimizer")
     st.markdown('<p class="hero-subtitle">Paste your in-game export, choose your build, and plan your next skill upgrades.</p>', unsafe_allow_html=True)
-    with st.sidebar:
-        st.header("TT2 Optimizer")
-        st.caption("Skill points, artifacts, and seasonal monuments in one planner.")
-        st.divider()
-        st.caption(f"Game tables · {data['version']} snapshot")
-        st.caption("Player data stays in this session.")
-        if "tt2_player" in st.session_state and st.button("Clear imported player", width="stretch"):
-            for key in ("tt2_player", "tt2_result", "json_input"):
-                st.session_state.pop(key, None)
-            st.rerun()
-
-    with st.container(key="player_import"):
-        st.subheader("Paste player JSON")
+    player = st.session_state.get("tt2_player")
+    if player and st.button("Clear imported player"):
+        for key in ("tt2_player", "tt2_result", "json_input"):
+            st.session_state.pop(key, None)
+        st.rerun()
+    with st.expander("Replace player JSON" if player else "Paste player JSON", expanded=not bool(player)):
         st.caption("In Tap Titans 2, open Settings → Services → Export, then paste the complete JSON export here. Your import stays in this browser session.")
         with st.form("player_json_import", clear_on_submit=False):
-            raw = st.text_area("Player JSON", key="json_input", height=135, placeholder='Paste the full export, for example: {"Version":"8.3.0", ...}')
-            submitted = st.form_submit_button("Import player", type="primary")
+            raw = st.text_area("Player JSON", key="json_input", height=180, placeholder='Paste the full export, for example: {"Version":"8.3.0", ...}')
+            submitted = st.form_submit_button("Import player", type="primary", width="stretch")
         if submitted:
             try:
                 install_player(raw, "Pasted JSON")
                 st.rerun()
             except ImportError as e:
                 st.error(str(e))
+
+    if not player:
+        st.caption(f"Game tables {data['version']} · Player data stays in this session")
+        return
 
     with st.container(key="reference_inputs"):
         st.subheader("Build settings")
@@ -180,7 +172,7 @@ def render():
         cols[2].metric("Available", f"{player.available_sp:,}" if player.skills_known else "Unknown")
         cols[3].metric("Artifacts owned", sum(v > 0 for v in player.artifacts.values()))
         cols[4].metric("Monuments owned", sum(v > 0 for v in player.monuments.values()))
-    skills_tab, artifact_tab, monument_tab, event_tab, about_tab = st.tabs(["Skill planner", "Artifacts", "Seasonal monuments", "Event breakpoints", "Data & method"])
+    skills_tab, artifact_tab, monument_tab, about_tab = st.tabs(["Skills", "Artifacts", "Monuments", "Data & method"])
     with skills_tab:
         st.subheader("Plan your allocation")
         st.caption("A prerequisite-aware heuristic ranks multi-level upgrades by modeled gain per SP. It is not a guaranteed global optimum. Mana, prestige speed and active play assumptions still need your judgment.")
@@ -271,22 +263,6 @@ def render():
         st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
         st.warning("Season activity and scaling come from the pinned snapshot, not a live season check. Conditional monument effects are held constant in the approximate ranking.")
         inventory(player, settings, "monuments")
-    with event_tab:
-        st.subheader("Historical event thresholds")
-        st.caption("From tt2_breakpoints. These are event-currency percentile thresholds, not skill-tree breakpoints or live targets.")
-        history = table("breakpoints.csv")
-        events = [r for r in history if r.get("holiday_event_id")]
-        event = st.selectbox("Event snapshot", list(reversed([r["holiday_event_id"] for r in events])))
-        row = next(r for r in reversed(events) if r["holiday_event_id"] == event)
-        currency = st.number_input("Your event currency", min_value=0, value=0, step=100)
-        cols = st.columns(3)
-        for col, key, name in zip(cols, ("0.8", "0.3", "0.1"), ("Top 80%", "Top 30%", "Top 10%")):
-            try:
-                threshold = int(row[key])
-                col.metric(name, f"{threshold:,}")
-                col.caption(f"{max(0, threshold - currency):,} currency to this historical threshold")
-            except (ValueError, TypeError):
-                col.metric(name, "Unavailable")
     with about_tab:
         st.subheader("Traceable data. Explicit assumptions.")
         st.write(f"Bundled game version: **{data['version']}**. The app works offline after installation. No claim is made that this snapshot matches the latest live game.")

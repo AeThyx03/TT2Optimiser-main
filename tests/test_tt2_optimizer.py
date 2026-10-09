@@ -2,11 +2,8 @@ import json
 import unittest
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import Mock
 
-import requests
 
-from src.tt2_api import APIError, API_URL, fetch_player
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
 from src.tt2_optimizer import Settings, bonus_weight, optimize_skills, rank_items, skill_score, spent, validate_allocation
 from src.tt2_player import ImportError, parse_player
@@ -171,51 +168,6 @@ class ItemTests(unittest.TestCase):
         p = parse_player(api_player(seasonal_artifacts=[{"artifact_id": "SeasonalArtifact10", "level": 10}]))
         self.assertEqual(rank_items(p, Settings(), "monuments")[0]["Priority"], 1)
         self.assertIsNone(rank_items(p, Settings(build="Pet"), "monuments")[0]["Priority"])
-
-
-class APITests(unittest.TestCase):
-    # Synthetic UUIDs, not user credentials.
-    APP = "00000000-0000-4000-8000-000000000001"
-    PLAYER = "00000000-0000-4000-8000-000000000002"
-
-    def test_auth_request_and_no_redirects(self):
-        request = Mock(return_value=Mock(status_code=200, json=Mock(return_value=api_player())))
-        result = fetch_player(self.APP, self.PLAYER, request=request)
-        self.assertIn("total_skill_points", result)
-        args, kw = request.call_args
-        self.assertEqual(args[0], API_URL)
-        self.assertEqual(kw["headers"], {"API-Authenticate": self.APP})
-        self.assertEqual(kw["json"]["player_token"], self.PLAYER)
-        self.assertFalse(kw["allow_redirects"])
-        self.assertNotIn("verify", kw)  # requests default remains True
-
-    def test_rate_limit_is_local_and_single_request(self):
-        state = {}
-        request = Mock(return_value=Mock(status_code=429))
-        with self.assertRaises(APIError):
-            fetch_player(self.APP, self.PLAYER, state, request)
-        with self.assertRaisesRegex(APIError, "30 seconds"):
-            fetch_player(self.APP, self.PLAYER, state, request)
-        self.assertEqual(request.call_count, 1)
-
-    def test_network_errors_do_not_leak_tokens(self):
-        for error in (requests.exceptions.SSLError(self.APP), requests.ConnectionError(self.PLAYER)):
-            with self.subTest(error=type(error)), self.assertRaises(APIError) as ctx:
-                fetch_player(self.APP, self.PLAYER, request=Mock(side_effect=error))
-            self.assertNotIn(self.APP, str(ctx.exception))
-            self.assertNotIn(self.PLAYER, str(ctx.exception))
-
-    def test_invalid_token_does_not_call_network(self):
-        request = Mock()
-        with self.assertRaises(APIError):
-            fetch_player("bad", self.PLAYER, request=request)
-        request.assert_not_called()
-
-    def test_error_payload_not_echoed(self):
-        request = Mock(return_value=Mock(status_code=200, json=Mock(return_value={"_error": self.APP})))
-        with self.assertRaises(APIError) as ctx:
-            fetch_player(self.APP, self.PLAYER, request=request)
-        self.assertNotIn(self.APP, str(ctx.exception))
 
 
 if __name__ == "__main__":
