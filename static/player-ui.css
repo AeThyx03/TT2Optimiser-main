@@ -1,4 +1,4 @@
-/* Titan Forge: an equipment desk and allocation ledger, not an in-game tree. */
+/* Compact player optimizer interface. */
 :root{--ink:#0e1118;--panel:#181d28;--line:#2a3243;--text:#f0f1f7;--muted:#a4adc1;--accent:#bca1ff;--gold:#edcc86}
 [data-testid="stApp"],[data-testid="stAppViewContainer"],[data-testid="stMain"]{background:var(--ink)!important;background-image:none!important}
 [data-testid="stHeader"]{background:#0e1118ee}
@@ -6,6 +6,13 @@
 h1{font-size:clamp(2rem,3.5vw,3.2rem);font-weight:800;letter-spacing:-.055em;line-height:1.15;color:var(--text);padding-bottom:1.4rem}
 h2,h3{letter-spacing:-.025em;color:var(--text)}
 h3{font-size:1.25rem;font-weight:700}
+.app-title{display:flex;align-items:center;gap:12px;margin:0 0 1.4rem;padding-bottom:1rem;border-bottom:1px solid var(--line)}
+.title-emblem{display:grid;place-items:center;flex:0 0 38px;height:38px;color:var(--gold);font-size:1.4rem;background:linear-gradient(135deg,#332a45,#171c29);border:1px solid #66547e;border-radius:10px;box-shadow:0 0 20px #bca1ff12}
+.app-title h1{font-size:clamp(1.4rem,3vw,1.85rem);line-height:1.3;letter-spacing:-.025em;font-weight:800;margin:0;padding:0;color:var(--text)}
+.app-title h1 span{color:var(--accent);font-weight:600}
+.creator-credit{text-align:right;margin-top:1.5rem;padding-top:.75rem;border-top:1px solid var(--line);font-size:.7rem;letter-spacing:.04em;color:var(--muted)}
+.secondary-stats{display:flex;flex-wrap:wrap;gap:8px 24px;color:var(--muted);font-size:.75rem;margin:.1rem 0 .25rem}.secondary-stats strong{color:#c8cee0;font-weight:600;margin-left:5px}
+.st-key-optimize_build button{min-height:48px;font-size:1rem;box-shadow:0 3px 16px #bca1ff18}
 .st-key-reference_inputs{border-top:1px solid var(--line);padding-top:1.2rem;margin-top:1.3rem}
 [data-testid="stCaptionContainer"] p{color:var(--muted);line-height:1.5;opacity:1}
 [data-testid="stWidgetLabel"] p{color:#c8cee0;font-size:.8rem;font-weight:600}
@@ -18,10 +25,14 @@ h3{font-size:1.25rem;font-weight:700}
 [data-testid="stButton"] button,[data-testid="stFormSubmitButton"] button,[data-testid="stDownloadButton"] button{min-height:42px;border:1px solid #39445b;border-radius:7px;background:#202738;color:var(--text);font-weight:650}
 [data-testid="stButton"] button[kind="primary"],[data-testid="stFormSubmitButton"] button[kind="primary"]{background:var(--accent);border-color:var(--accent);color:#181122}
 button:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
-.st-key-optimization_goal [role="radiogroup"]{display:flex;flex-direction:row;flex-wrap:wrap;gap:7px}
-.st-key-optimization_goal label[data-baseweb="radio"]{margin:0;padding:9px 12px;border:1px solid var(--line);border-radius:7px;background:#101520;width:auto}
+.st-key-optimization_goal,.st-key-optimization_goal .stRadio{width:100%!important}
+.st-key-optimization_goal [role="radiogroup"]{display:flex;width:100%;box-sizing:border-box;flex-direction:row;flex-wrap:nowrap;gap:4px;background:#101520;border:1px solid var(--line);border-radius:9px;padding:4px}
+.st-key-optimization_goal label[data-baseweb="radio"]{display:flex;justify-content:center;flex:1;min-width:0;margin:0;padding:10px 5px;border:1px solid transparent;border-radius:6px;background:transparent;width:auto}
+.st-key-optimization_goal label[data-baseweb="radio"]>div:first-child{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.st-key-optimization_goal label[data-baseweb="radio"] p{font-size:.85rem;text-align:center}
+.st-key-optimization_goal label:has(input:focus-visible){outline:2px solid var(--gold);outline-offset:1px}
 .st-key-optimization_goal label:has(input:checked){background:#302742;border-color:#8f74c7}
-.profile-line{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:.25rem 0 1rem}
+.profile-line{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:0 0 .5rem}
 .profile-label,.stage-marker small{display:block;color:var(--muted);font-size:.62rem;font-weight:700;letter-spacing:.16em}
 .profile-line h2{font-size:1.35rem;padding:0;margin:.4rem 0 0}.profile-line h2 span{color:var(--muted);font-weight:400}
 .stage-marker{text-align:right}.stage-marker strong{font-size:1.5rem;color:var(--gold);font-variant-numeric:tabular-nums}
@@ -29,7 +40,7 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outlin
 [data-testid="stMetricLabel"]{color:var(--muted);font-size:.72rem}
 [data-testid="stMetricValue"]{font-size:1.55rem;font-weight:650;color:var(--text);font-variant-numeric:tabular-nums}
 .st-key-player_metrics [data-testid="stHorizontalBlock"]{flex-wrap:wrap;gap:10px}.st-key-player_metrics [data-testid="stColumn"]{min-width:120px;flex:1 1 120px}
-[data-testid="stTabs"] [data-baseweb="tab-list"]{gap:28px;border-bottom:1px solid var(--line);margin:1.3rem 0 1rem}
+[data-testid="stTabs"] [data-baseweb="tab-list"]{gap:28px;border-bottom:1px solid var(--line);margin:.25rem 0 .5rem}
 [data-testid="stTabs"] [data-baseweb="tab"]{padding:14px 4px;color:var(--muted);font-weight:700;font-size:.9rem}
 [data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"]{color:var(--accent)}
 [data-testid="stTabs"] [data-baseweb="tab-highlight"]{background:var(--accent);height:3px}
@@ -44,7 +55,7 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outlin
 .item-value{flex:0 1 290px;min-width:150px}.item-efficiency{font-size:.8rem;color:var(--gold);font-weight:650;font-variant-numeric:tabular-nums}.item-meter{height:4px;background:#303749;margin:9px 0;border-radius:3px;overflow:hidden}.item-meter span{display:block;height:100%;background:var(--accent)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 
-.st-key-reference_inputs{padding:16px 20px;background:#151a25;border:1px solid var(--line);border-radius:10px;margin:0 0 1rem}
+.st-key-reference_inputs{padding:12px 16px;background:#151a25;border:1px solid var(--line);border-radius:10px;margin:0}
 @media(max-width:800px){.block-container{padding:4rem 1.25rem}.collection-card{flex-wrap:wrap;gap:12px;padding:16px}.item-value{flex:1 1 100%;padding-left:0}.collection-card:has(.item-art) .item-value{padding-left:66px}.profile-line h2{font-size:1.1rem}}
 @media(max-width:480px){.profile-line{align-items:flex-start}.stage-marker strong{font-size:1.1rem}}
 

@@ -108,10 +108,11 @@ def render_skill_tree(levels, current_levels):
 
 
 def render():
-    st.set_page_config(page_title="Titan Forge · TT2", page_icon="⚔️", layout="wide")
+    st.set_page_config(page_title="Tap Titans 2 Optimizer", page_icon="⚔️", layout="wide")
     theme = Path(__file__).resolve().parents[1] / "static" / "player-ui.css"
     css = theme.read_text(encoding="utf-8")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    st.markdown('<header class="app-title"><span class="title-emblem" aria-hidden="true">⚔</span><h1>Tap Titans 2 <span>Optimizer</span></h1></header>', unsafe_allow_html=True)
     data = catalog()
     player = st.session_state.get("tt2_player")
     player = st.session_state.get("tt2_player")
@@ -146,6 +147,7 @@ def render():
                 spell_names = {"BurstDamage":"Heavenly Strike", "CritBoost":"Deadly Strike", "HandOfMidas":"Hand of Midas", "TapBoost":"Fire Sword", "HelperBoost":"War Cry", "ShadowClone":"Shadow Clone", "DualPet":"Dual Summon", "StreamOfBlades":"Blade Stream", "ThunderVolley":"Thunder Ship", "TwilightFairy":"Twilight Fairies", "GoldenMissile":"Golden Missile"}
                 active_spells = st.multiselect("Active spells for monument scoring", list(data["spell_reductions"]), default=list(default_spells(build)), max_selections=4, format_func=spell_names.get, key=f"monument_spells_{build}", help="Choose the spells active during your run. This controls spell boosts, Portal of Shadows, and damage/gold per activated spell.")
     if not player:
+        st.markdown('<footer class="creator-credit">by Aethyx</footer>', unsafe_allow_html=True)
         return
     settings = Settings(build, gold, weight, contracts, attempts, active_spells=tuple(active_spells), optimization_goal=goal)
 
@@ -158,12 +160,11 @@ def render():
     for message in player.warnings:
         st.warning(message)
     with st.container(key="player_metrics"):
-        cols = st.columns(5)
+        cols = st.columns(2)
         cols[0].metric("Total SP", f"{player.total_sp:,}")
-        cols[1].metric("Spent", f"{player.spent_sp:,}" if player.skills_known else "Unknown")
-        cols[2].metric("Available", f"{player.available_sp:,}" if player.skills_known else "Unknown")
-        cols[3].metric("Artifacts", sum(v > 0 for v in player.artifacts.values()))
-        cols[4].metric("Monuments", sum(v > 0 for v in player.monuments.values()))
+        cols[1].metric("Available SP", f"{player.available_sp:,}" if player.skills_known else "Unknown")
+        spent_text = f"{player.spent_sp:,}" if player.skills_known else "Unknown"
+        st.markdown(f'<div class="secondary-stats"><span>Spent <strong>{spent_text}</strong></span><span>Artifacts <strong>{sum(v > 0 for v in player.artifacts.values())}</strong></span><span>Monuments <strong>{sum(v > 0 for v in player.monuments.values())}</strong></span></div>', unsafe_allow_html=True)
     skills_tab, artifact_tab, monument_tab = st.tabs(["Skills", "Artifacts", "Monuments"])
     with skills_tab:
         c1, c2 = st.columns([3, 1])
@@ -174,7 +175,7 @@ def render():
         if mode == "respec":
             st.caption("Reset your skill tree in-game to apply a full respec.")
         fingerprint = (repr(player), settings, mode, reserve)
-        if st.button("Optimize skill points", type="primary", disabled=mode == "spend" and not player.skills_known):
+        if st.button("Optimize build", type="primary", key="optimize_build", width="stretch", disabled=mode == "spend" and not player.skills_known):
             try:
                 with st.spinner("Comparing upgrades and their prerequisites…"):
                     result = optimize_skills(player, settings, mode, reserve)
@@ -191,9 +192,10 @@ def render():
             st.caption(f"{goal_label} · Damage/gold gain: +{result['log_gain']:.3f} log10")
             if settings.objective_weights[1] > 0:
                 st.caption(f"Speed utility gain: +{result['utility_gain']:.3f} · estimated")
+            render_skill_tree(result["levels"], player.skills)
+            if settings.objective_weights[1] > 0:
                 with st.expander("Speed breakdown"):
                     st.dataframe(pd.DataFrame([{"Factor": k, "Utility gain": round(v, 3)} for k, v in result["speed_components"].items() if v > 0]), hide_index=True, width="stretch")
-            render_skill_tree(result["levels"], player.skills)
             export = {
                 "Version": data["version"],
                 "Skills": {key: str(level) for key, level in result["levels"].items() if level > 0},
@@ -235,3 +237,4 @@ def render():
     with monument_tab:
         st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
         inventory(player, settings, "monuments")
+    st.markdown('<footer class="creator-credit">by Aethyx</footer>', unsafe_allow_html=True)
