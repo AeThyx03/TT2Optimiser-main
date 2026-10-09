@@ -69,32 +69,6 @@ def inventory(player, settings, kind):
     currency = "relics" if kind == "artifacts" else "mementos"
     ranked = [r for r in rows if r["Priority"] is not None]
     if kind == "monuments":
-        st.caption("Lifetime targets paused · In-game evidence contradicts the cost model")
-        with st.expander("How to reach your lifetime targets"):
-            st.markdown("The previous **88% target is withdrawn**. Your screenshots show Glassbone at 23.95% lifetime investment versus Hierophant at 12.49%, despite similar levels. The current relative cost model cannot reproduce that difference. Upgrade ordering also uses that unvalidated cost curve; treat it as experimental. Exact percentages will remain unavailable until costs are calibrated. A 0% entry only means the primary effect does not support this build or the monument is capped.")
-            st.caption("Targets balance primary effects with a dominant All Monument Damage contributor at your imported progression. Relative cost scaling and the shared-damage curve are estimated; discovery, enchantment and capped-item spending are excluded. These are targets for the scalable investment pool, not verified exact lifetime percentages. Current lifetime shares and absolute upgrade costs are unavailable in this export. Re-import after progressing to refresh the targets.")
-        with st.expander("Validate with in-game upgrades"):
-            from src.tt2_monument_validation import supplied_screenshot_check
-            screenshot_check = supplied_screenshot_check()
-            st.markdown(f"**Supplied screenshots:** Glassbone / Hierophant investment ratio **{screenshot_check['observed_investment_ratio']:.3f}×**; current cost model predicts **{screenshot_check['modeled_investment_ratio']:.3f}×**. The discrepancy exceeds display rounding, assuming unchanged lifetime totals and cost modifiers.")
-            st.dataframe(pd.DataFrame(screenshot_check["shared_damage_checks"]), hide_index=True, width="stretch")
-            st.caption("Lifetime targets are provisional until actual costs are checked. Record two purchases each for Hierophant and a supporting monument, without changing season, enchantments or other cost bonuses. Use exact levels and mementos spent; rounded balances may be too imprecise. Measurements test the observed range, not the full lifetime target.")
-            example = [{"monument": "SeasonalArtifact43", "level_before": 125000, "level_after": 125010,
-                        "mementos_spent": "REPLACE_WITH_ACTUAL_COST"}]
-            with st.form("monument_validation"):
-                observations = st.text_area("Measured upgrades (JSON)", height=180,
-                                            placeholder=json.dumps(example, indent=2), key="monument_measurements")
-                st.caption("Optional: damage_before_percent and damage_after_percent, copied from All Monument Damage, e.g. 7.30e5470. Do not enter modeled values as measurements.")
-                submitted = st.form_submit_button("Check measurements")
-            if submitted:
-                from src.tt2_monument_validation import validate_purchases
-                try:
-                    report = validate_purchases(observations)
-                    st.info(report["verdict"])
-                    st.dataframe(pd.DataFrame(report["rows"]), hide_index=True, width="stretch")
-                    st.caption("Cost scale log10 should be consistent across purchases if one common multiplier explains the cost curve. A mismatch means the current percentages need recalibration. Even matching local costs does not establish that 88% is globally optimal; actual lifetime shares, broader cost ranges and unchanged gameplay counters are still needed.")
-                except ValueError as exc:
-                    st.error(str(exc))
         if any(r["Status"] == "Effect needs compatible season data" for r in rows):
             st.info("Some effects need compatible season data before they can be ranked.")
     if ranked:
