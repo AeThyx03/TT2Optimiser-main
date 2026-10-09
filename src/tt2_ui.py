@@ -20,6 +20,12 @@ def skill_icon(key):
     path = Path(__file__).resolve().parents[1] / "static" / "skill-icons" / f"{key}.png"
     return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
+
+@lru_cache(maxsize=1)
+def background_image():
+    path = Path(__file__).resolve().parents[1] / "static" / "tt2-background.png"
+    return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+
 def install_player(payload, source):
     player = parse_player(payload, source)
     st.session_state["tt2_player"] = player
@@ -131,7 +137,7 @@ def render():
       [data-testid="stDataFrame"] {border:1px solid #ffffff1c;border-radius:8px;overflow:hidden;}
     </style>""", unsafe_allow_html=True)
     theme = Path(__file__).resolve().parents[1] / "static" / "player-ui.css"
-    st.markdown(f"<style>{theme.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+    st.markdown(f"<style>:root {{ --tt2-background: url('{background_image()}'); }}{theme.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
     data = catalog()
     st.markdown('<div class="eyebrow">TAP TITANS 2</div>', unsafe_allow_html=True)
     st.title("Player optimizer")
