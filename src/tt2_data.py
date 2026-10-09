@@ -23,17 +23,29 @@ def catalog():
         s["costs"] = [0]
         for level in range(s["max"]):
             s["costs"].append(s["costs"][-1] + int(s[f"Co{level}"]))
-    monuments = {r["ArtifactID"]: r for r in table("EndgameSeasonArtifactInfo.csv")}
-    # The current upstream CSV transposes these two display names. Its IDs and
-    # effect parameters stay intact. The alternate snapshot's ID/name mapping
-    # and the supplied in-game Rosabella screenshot agree on companion deadly
-    # damage (SeasonalArtifact33), rather than inspired hero damage (ID 6).
-    monuments["SeasonalArtifact6"]["Name"] = "Mound of Brothers' Meet"
-    monuments["SeasonalArtifact33"]["Name"] = "Rosabella's Village"
+    # This alternate season, rather than the latest table, matches the supplied
+    # player's 33 owned IDs, caps, effects and displayed multiplier magnitudes.
+    monuments = {r["ArtifactID"]: r for r in table("EndgameSeasonArtifactInfo_1.csv")}
+    # ID 33 is not in the export; its upstream name conflicts with verified ID 6.
+    # Keep its identity unresolved instead of guessing another display name.
+    monuments["SeasonalArtifact33"]["Name"] = "Unverified monument (SeasonalArtifact33)"
+    monuments["SeasonalArtifact33"]["PrimaryModelAvailable"] = False
+    references = json.loads((DATA / "monument_descriptions.json").read_text())["monuments"]
+    for key, reference in references.items():
+        item = monuments[key]
+        item["LegacyName"] = item["Name"]
+        # A description establishes effect routing, not coefficients for a
+        # changed effect. Never apply the old effect's growth to a new one.
+        item["PrimaryModelAvailable"] = item["BonusType"] == reference["BonusType"]
+        item.update({k: reference[k] for k in ("Name", "BonusType", "CategoryID", "Description")})
+        item["MaxLevel"] = str(reference["MaxLevel"])
+        item["DescriptionSource"] = reference["Image"]
+        item["IsActive"] = "TRUE"  # supplied season; only owned items are ranked
     return {
         "skills": skills,
         "artifacts": {r["ArtifactID"]: r for r in table("ArtifactInfo.csv")},
         "monuments": monuments,
+        "monument_source": "EndgameSeasonArtifactInfo_1.csv, cross-checked with supplied screenshots and export",
         "bonuses": {r["BonusType"]: r for r in table("BonusInfo.csv")},
         "reductions": json.loads((DATA / "reductions.json").read_text()),
         "spells": json.loads((DATA / "spells.json").read_text()),

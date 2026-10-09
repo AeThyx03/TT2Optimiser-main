@@ -18,6 +18,7 @@ class Settings:
     contracts: bool = False
     lightning_attempts: int = 60
     qol: bool = False
+    active_spells: tuple[str, ...] | None = None
 
     def __post_init__(self):
         if self.build not in BUILDS or self.gold not in GOLD_SOURCES:
@@ -26,6 +27,8 @@ class Settings:
             raise ValueError("Gold weight must be between 0 and 1.")
         if not 0 <= self.lightning_attempts <= 1000:
             raise ValueError("Lightning attempts must be between 0 and 1000.")
+        if self.active_spells is not None and (len(self.active_spells) > 4 or len(set(self.active_spells)) != len(self.active_spells) or any(s not in catalog()["spell_reductions"] for s in self.active_spells)):
+            raise ValueError("Choose up to four distinct supported active spells.")
 
     @property
     def gold_key(self):
@@ -331,10 +334,21 @@ def bonus_weight(bonus, settings):
     hero = {"Clan Ship": 1, "Shadow Clone": .6, "Heavenly Strike": .5, "Pet": .5, "Dagger": .5, "Gold Gun": .9}[build]
     if bonus in {"TapDamage", "ActiveTapDamage", "TapBoostSkillAmount"}:
         return tap
+    if bonus == "TapDamagePerSeasonPrestige":
+        return tap
+    if bonus == "BoostedSwordAttackDamage":
+        return 2.0  # Titan Slayer: All Damage AND Critical Damage, all builds.
+    if bonus == "KnightBonusBoost":
+        return 2 * tap + float(build == "Pet")  # Tap, Fire Sword, Pet
+    if bonus == "GoldSpecialty":
+        return gw * float(gold in {"Fairy", "Heart of Gold"})
+    if bonus == "ShadowCloneAllSkillBoost":
+        # Conditional spell amplification requires an active-spell setup.
+        # Do not assume Shadow Clone is active in other main-damage builds.
+        return None if build == "Shadow Clone" else 0.0
     if bonus in {"AllHelperDamage", "MeleeHelperDamage", "RangedHelperDamage", "SpellHelperDamage", "GroundHelperDamage", "FlyingHelperDamage", "HelperBoostSkillAmount", "InspiredHelperDamage", "HelperWeaponBoost", "HelperWeaponSetBoost", "ClanScrollBoost", "ClanScrollSetBoost", "HelperBoostSkillAmountDuringTapBoostSkill"}:
         return hero
     targets = {
-        "BoostedSwordAttackDamage": ("Heavenly Strike", "Dagger", "Gold Gun"),
         "BuildBoostCSHSSC": ("Clan Ship", "Heavenly Strike", "Shadow Clone"),
         "BuildBoostSCPetGG": ("Shadow Clone", "Pet", "Gold Gun"),
         "PetDamage": ("Pet",), "PetAttackQTEDamage": ("Pet",), "DualPetAmount": ("Pet",),
@@ -344,7 +358,7 @@ def bonus_weight(bonus, settings):
         "TwilightBoost": ("Shadow Clone", "Heavenly Strike"), "TwilightBoostPerSeasonFairy": ("Shadow Clone", "Heavenly Strike"),
         "CompanionDamage": ("Pet", "Clan Ship", "Shadow Clone"), "BuildBoostHSDGGG": ("Heavenly Strike", "Dagger", "Gold Gun"),
         "DeadlyDamageCompanion": ("Pet", "Clan Ship", "Shadow Clone"),
-        "BuildBoostDGPetCS": ("Dagger", "Pet", "Clan Ship"), "SwordAttackDamage": ("Heavenly Strike", "Dagger", "Gold Gun"),
+        "BuildBoostDGPetCS": ("Dagger", "Pet", "Clan Ship"), "SwordAttackDamage": ("Heavenly Strike", "Shadow Clone", "Dagger", "Gold Gun"),
     }
     if bonus in targets:
         return float(build in targets[bonus])
@@ -352,7 +366,7 @@ def bonus_weight(bonus, settings):
         return gw * {"FairyGold": float(gold == "Fairy"), "PetGoldQTEAmount": float(gold == "Heart of Gold"),
                      "GoldBoss": float(gold == "Heart of Gold"), "ChestAmount": float(gold in {"Fairy", "Chesterson"}),
                      "MultiMonstersGold": float(gold == "Chesterson")}[bonus]
-    if bonus in {"GoldAll", "GoldSpecialty", "UnskilledGold", "JackpotGold", "GoldPerOwnedCardLevel", "GoldPerRunningActiveSkill", "GoldPerMythicSet", "JackpotGoldPerSeasonDay", "LegacyPetGoldEffect", "ExoticPetGoldEffect", "AllArtifactGoldEffect", "ArmorBoost"}:
+    if bonus in {"GoldAll", "GoldAllPerSeasonChesterson", "UnskilledGold", "JackpotGold", "GoldPerOwnedCardLevel", "GoldPerRunningActiveSkill", "GoldPerMythicSet", "JackpotGoldPerSeasonDay", "LegacyPetGoldEffect", "ExoticPetGoldEffect", "AllArtifactGoldEffect", "ArmorBoost"}:
         return gw
     if bonus == "HandOfMidasSkillAmount":
         return gw * (1 if gold == "Chesterson" else .6)
@@ -406,12 +420,51 @@ def scientific_from_log(value):
     return f"{10 ** (value - exponent):.3f}e{exponent:+d}"
 
 
+def monument_weight(item, settings, player):
+    """Route artifact amplifiers through owned, build-relevant artifacts."""
+    effect = item["BonusType"]
+    spells = settings.active_spells if settings.active_spells is not None else default_spells(settings.build)
+    if effect in {"AllActiveSkillAmount", "ShadowCloneAllSkillBoost"}:
+        if effect == "ShadowCloneAllSkillBoost" and "ShadowClone" not in spells:
+            return 0.0
+        return sum((catalog()["spell_reductions"][s].get(settings.build) or 0) + settings.gold_weight * (catalog()["spell_reductions"][s].get(settings.gold_key) or 0) for s in spells)
+    if effect == "GoldPerRunningActiveSkill":
+        return len(spells) * settings.gold_weight
+    if effect == "DamagePerRunningActiveSkill":
+        return float(len(spells))
+    if effect in {"AllArtifactDamageEffect", "AllArtifactGoldEffect"}:
+        target_class = "Damage" if effect == "AllArtifactDamageEffect" else "Gold"
+        weight = 0.0
+        for key, level in player.artifacts.items():
+            artifact = catalog()["artifacts"].get(key)
+            if not artifact or not level or key == "Artifact22":
+                continue
+            bonus = artifact["BonusType"]
+            if catalog()["bonuses"].get(bonus, {}).get("BonusClass") == target_class:
+                weight += bonus_weight(bonus, settings) or 0
+        return weight
+    return bonus_weight(effect, settings)
+
+
+def default_spells(build):
+    """Explicit four-spell assumption; users can replace it in build settings."""
+    return {
+        "Heavenly Strike": ("BurstDamage", "TapBoost", "HandOfMidas", "TwilightFairy"),
+        "Clan Ship": ("HelperBoost", "CritBoost", "HandOfMidas", "ThunderVolley"),
+        "Shadow Clone": ("ShadowClone", "TapBoost", "HelperBoost", "CritBoost"),
+        "Pet": ("DualPet", "TapBoost", "CritBoost", "HandOfMidas"),
+        "Dagger": ("StreamOfBlades", "TapBoost", "CritBoost", "HandOfMidas"),
+        "Gold Gun": ("GoldenMissile", "TapBoost", "HelperBoost", "HandOfMidas"),
+    }[build]
+
+
 def rank_items(player, settings, kind="artifacts"):
     """Finite next-level gains per modeled cost, not a full spending plan.
 
     1+c*L**g effect and C*L**p cost model. Monument growth and cost use their
     own CSV parameters. Conditional factors remain fixed. Includes additive
-    collection damage; unknown secondary effects are never invented.
+    artifact collection damage; monument priorities require a relevant modeled
+    primary effect. The unverified All Monument Damage curve is not scored.
     """
     if kind not in {"artifacts", "monuments"}:
         raise ValueError("Unsupported collection.")
@@ -422,7 +475,7 @@ def rank_items(player, settings, kind="artifacts"):
     contributions = {}
     for key, level in owned.items():
         item = catalog()[kind].get(key)
-        if item and level > 0 and (kind == "artifacts" or item["IsActive"] == "TRUE"):
+        if kind == "artifacts" and item and level > 0:
             if float(item["DamageBonus"]) > 0:
                 exponent = float(item.get("DamageExpo", 1))
                 contributions[key] = log(item["DamageBonus"]) + exponent * float(level.log10())
@@ -434,14 +487,22 @@ def rank_items(player, settings, kind="artifacts"):
                "Status": "Unknown ID", "Priority": None, "log_efficiency": None,
                "Next cost (estimate)": None, "Affordable": None, "Gain log10 (estimate)": None,
                "Primary gain log10 (estimate)": None, "Collection gain log10 (estimate)": None,
-               "Effect description": catalog()["bonuses"].get(item["BonusType"] if item else "", {}).get("Description", "Unknown effect"),
+               "Effect description": item.get("Description", catalog()["bonuses"].get(item["BonusType"], {}).get("Description", "Unknown effect")) if item else "Unknown effect",
                "Enchanted": key in (player.enchanted if kind == "artifacts" else player.monument_enchanted)}
         if item:
             active = kind != "monuments" or item["IsActive"] == "TRUE"
             cap = int(item["MaxLevel"])
-            weight = bonus_weight(item["BonusType"], settings)
+            weight = monument_weight(item, settings, player) if kind == "monuments" else bonus_weight(item["BonusType"], settings)
+            model_available = kind != "monuments" or item.get("PrimaryModelAvailable", True)
             row["Status"] = "Not owned" if not level else "Inactive in snapshot" if not active else "Maxed" if cap and level >= cap else "Farming / BoS" if key == "Artifact22" else "Effect not modeled; collection damage only" if weight is None else "Other build; collection damage only" if weight == 0 else "Ranked (estimate)"
+            if kind == "monuments" and level and active and not (cap and level >= cap):
+                row["Status"] = "Not recommended for this build / gold source" if weight == 0 else "Effect needs compatible season data" if not model_available else "Effect or condition not modeled" if weight is None else "Ranked (primary effect estimate)"
+            if kind == "monuments" and weight == 0:
+                row["Primary gain log10 (estimate)"] = "0"
             if level and active and not (cap and level >= cap) and key != "Artifact22":
+                if not model_available:
+                    rows.append(row)
+                    continue
                 ln_level = float(level.log10())
                 gains = []
                 effect_gain = item_effect_gain(item, level, row["Enchanted"])
@@ -465,8 +526,12 @@ def rank_items(player, settings, kind="artifacts"):
                             gains.append(log(gain))
                             row["Collection gain log10 (estimate)"] = scientific_from_log(log(gain))
                 cost = log(item["CostCoef"]) + float(item["CostExpo"]) * ln_level
-                row["Next cost (estimate)"] = scientific_from_log(cost)
-                row["Affordable"] = None if balance is None else balance > 0 and cost <= float(balance.log10())
+                # Monument coefficients give a relative curve; absolute prices
+                # also require the acquisition/season scaling absent here.
+                # Never show the tiny artifact-style value as a memento price.
+                if kind == "artifacts":
+                    row["Next cost (estimate)"] = scientific_from_log(cost)
+                    row["Affordable"] = None if balance is None else balance > 0 and cost <= float(balance.log10())
                 if gains:
                     combined = log_sum(gains)
                     row["Gain log10 (estimate)"] = scientific_from_log(combined)

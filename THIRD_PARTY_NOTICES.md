@@ -48,20 +48,20 @@ No provider source code is copied into this application.
   attempt count. Extra spell-level effects assume base spell caps of 30, or 35
   with The Fallen Angel. It does not model mana sustain, prestige speed, every
   artifact/monument interaction, or in-game timing.
-- Artifact/monument priorities use finite next-level ratios for the modeled
-  1 + coefficient × level^growth effect, plus additive collection damage. Estimated
-  cost uses coefficient × level^cost exponent. Large levels use log-space
-  derivatives. Imported enchantment multipliers scale the primary effect once.
-  Unmodeled primary effects can rank only for their known collection damage.
-  Prices, conditional counters and monument behavior remain estimates, not
-  verified live-game spending plans. The ambiguous L40 column is not used.
-- Seasonal activity comes from EndgameSeasonArtifactInfo.csv; the `_1` table is
-  retained as an upstream alternate snapshot, but is not silently substituted.
-- The current upstream table transposes the display names of IDs 6 and 33.
-  Catalog names are corrected to Mound of Brothers' Meet (6) and Rosabella's
-  Village (33), matching the alternate snapshot's ID/name mapping and the
-  supplied in-game screenshot showing Rosabella's companion deadly damage.
-  IDs, effect types, growth parameters, costs and activity are unchanged.
+- Primary gains use finite ratios for 1 + coefficient × level^growth. Large
+  levels use log-space derivatives; imported enchantment multipliers scale the
+  primary effect once. Artifact priorities also include additive collection
+  damage. Off-build/unmodeled monuments are excluded, and All Monument Damage
+  does not determine upgrade priority. Monument absolute prices and affordability
+  are withheld: the cost coefficients are only a relative curve without verified
+  acquisition/season scaling. Conditional counters and synergies remain estimates.
+- Monument parameters use EndgameSeasonArtifactInfo_1.csv, whose effects and
+  growth magnitudes match the supplied 33 screenshots and player export. The
+  screenshots/export correct display names: Rosabella's Village = ID 6,
+  Mound of Brothers' Meet = ID 27, Grand Air Chariot = ID 37. ID 33 is unverified
+  and excluded. Metadata and provenance are in monument_descriptions.json.
+  This is a profile for the supplied season, not automatic support for every
+  season. The ambiguous L40 column is not used.
 - Player data and tokens are never required for offline JSON calculations.
 
 ## Artifact formula reference

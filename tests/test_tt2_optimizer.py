@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
-from src.tt2_optimizer import Settings, bonus_weight, item_effect_gain, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
+from src.tt2_optimizer import Settings, bonus_weight, item_effect_gain, monument_weight, optimize_skills, qol_score, rank_items, skill_score, spent, validate_allocation
 from src.tt2_player import ImportError, parse_player
 
 DEMO = Path(__file__).resolve().parents[1] / "examples/player-demo.json"
@@ -185,23 +185,25 @@ class SkillTests(unittest.TestCase):
 class ItemTests(unittest.TestCase):
     def test_rosabella_identity_and_heavenly_strike_relevance(self):
         monuments = catalog()["monuments"]
-        self.assertEqual(monuments["SeasonalArtifact33"]["Name"], "Rosabella's Village")
-        self.assertEqual(monuments["SeasonalArtifact33"]["BonusType"], "DeadlyDamageCompanion")
-        self.assertEqual(monuments["SeasonalArtifact6"]["Name"], "Mound of Brothers' Meet")
-        for identifier in ("Rosabella's Village", "SeasonalArtifact33"):
+        self.assertEqual(monuments["SeasonalArtifact6"]["Name"], "Rosabella's Village")
+        self.assertEqual(monuments["SeasonalArtifact6"]["BonusType"], "DeadlyDamageCompanion")
+        self.assertEqual(monuments["SeasonalArtifact27"]["Name"], "Mound of Brothers' Meet")
+        for identifier in ("Rosabella's Village", "SeasonalArtifact6"):
             with self.subTest(identifier=identifier):
                 p = parse_player(api_player(monuments={identifier: 93000, "SeasonalArtifact43": 93000}))
-                self.assertIn("SeasonalArtifact33", p.monuments)
+                self.assertIn("SeasonalArtifact6", p.monuments)
                 rows = rank_items(p, Settings(build="Heavenly Strike"), "monuments")
-                rosabella = next(r for r in rows if r["ID"] == "SeasonalArtifact33")
+                rosabella = next(r for r in rows if r["ID"] == "SeasonalArtifact6")
                 self.assertEqual(rosabella["Primary gain log10 (estimate)"], "0")
-                self.assertEqual(rosabella["Gain log10 (estimate)"], rosabella["Collection gain log10 (estimate)"])
-                self.assertIn("Other build", rosabella["Status"])
+                self.assertIsNone(rosabella["Priority"])
+                self.assertIsNone(rosabella["Gain log10 (estimate)"])
+                self.assertIsNone(rosabella["Collection gain log10 (estimate)"])
+                self.assertIn("Not recommended", rosabella["Status"])
                 self.assertEqual(rows[0]["ID"], "SeasonalArtifact43")
                 self.assertEqual(rows[0]["Priority"], 1)
 
     def test_companion_deadly_damage_build_matrix(self):
-        p = parse_player(api_player(monuments={"SeasonalArtifact33": 93000}))
+        p = parse_player(api_player(monuments={"SeasonalArtifact6": 93000}))
         for build in BUILDS:
             with self.subTest(build=build):
                 expected = build in {"Pet", "Clan Ship", "Shadow Clone"}
@@ -247,12 +249,104 @@ class ItemTests(unittest.TestCase):
         self.assertTrue(all(r["Priority"] is None for r in rows))
 
     def test_monument_build_changes_priority(self):
-        p = parse_player(api_player(seasonal_artifacts=[{"artifact_id": "SeasonalArtifact10", "level": 10}]))
+        p = parse_player(api_player(seasonal_artifacts=[{"artifact_id": "SeasonalArtifact31", "level": 10}]))
         self.assertEqual(rank_items(p, Settings(), "monuments")[0]["Priority"], 1)
         cs = rank_items(p, Settings(), "monuments")[0]
         pet = rank_items(p, Settings(build="Pet"), "monuments")[0]
-        self.assertIn("collection damage only", pet["Status"])
-        self.assertGreater(cs["log_efficiency"], pet["log_efficiency"])
+        self.assertIn("Not recommended", pet["Status"])
+        self.assertIsNone(pet["Priority"])
+        self.assertIsNotNone(cs["log_efficiency"])
+
+    def test_low_level_off_build_monuments_cannot_win(self):
+        # Reproduce the screenshot imbalance: useful monuments ~110-125k;
+        # off-build monuments ~32k, previously favored by collection/cost.
+        p = parse_player(api_player(monuments={
+            "Rosabella's Village": 32230, "Hideout of Stratagem": 32490,
+            "Three Cup Mana Pool": 32030, "Lost Cups Five": 77580,
+            "Sword Master's Shrine": 77640, "Hierophant's Library": 125030,
+            "Nine Pentacle Garden": 110060, "Emblem of Worlds": 110060,
+            "Midnight Pass": 110060}))
+        for gold in GOLD_SOURCES:
+            rows = rank_items(p, Settings(build="Heavenly Strike", gold=gold), "monuments")
+            by_id = {r["ID"]: r for r in rows}
+            for key in ("SeasonalArtifact6", "SeasonalArtifact31", "SeasonalArtifact42", "SeasonalArtifact41", "SeasonalArtifact18"):
+                self.assertIsNone(by_id[key]["Priority"])
+            self.assertIn(rows[0]["ID"], {"SeasonalArtifact43", "SeasonalArtifact35", "SeasonalArtifact36", "SeasonalArtifact32"})
+        lone = parse_player(api_player(monuments={"Rosabella's Village": 1}))
+        self.assertIsNone(rank_items(lone, Settings(build="Heavenly Strike"), "monuments")[0]["Priority"])
+
+    def test_screenshot_effects_caps_and_parameter_mismatch(self):
+        monuments = catalog()["monuments"]
+        self.assertEqual(monuments["SeasonalArtifact27"]["BonusType"], "AllArtifactDamageEffect")
+        self.assertEqual(monuments["SeasonalArtifact37"]["BonusType"], "AllActiveSkillAmount")
+        self.assertEqual(monuments["SeasonalArtifact45"]["BonusType"], "TwilightBoost")
+        self.assertEqual(monuments["SeasonalArtifact54"]["MaxLevel"], "40")
+        self.assertEqual(monuments["SeasonalArtifact52"]["MaxLevel"], "40")
+        p = parse_player(api_player(monuments={"Heartbloom Grove": 110060,
+                                               "The Scarred Constellation": 40,
+                                               "The Clocksout Engine": 40}))
+        rows = {r["ID"]: r for r in rank_items(p, Settings(build="Heavenly Strike"), "monuments")}
+        self.assertEqual(rows["SeasonalArtifact45"]["Status"], "Ranked (primary effect estimate)")
+        self.assertIsNotNone(rows["SeasonalArtifact45"]["Priority"])
+        self.assertEqual(rows["SeasonalArtifact54"]["Status"], "Maxed")
+        self.assertEqual(rows["SeasonalArtifact52"]["Status"], "Maxed")
+
+    def test_screenshot_effect_routing(self):
+        self.assertEqual(bonus_weight("SwordAttackDamage", Settings(build="Shadow Clone")), 1)
+        self.assertEqual(bonus_weight("BoostedSwordAttackDamage", Settings(build="Clan Ship")), 2)
+        self.assertEqual(bonus_weight("GoldSpecialty", Settings(gold="Chesterson")), 0)
+        self.assertEqual(bonus_weight("ShadowCloneAllSkillBoost", Settings(build="Heavenly Strike")), 0)
+
+    def test_actual_export_monument_regression(self):
+        p = parse_player((Path(__file__).parent / "fixtures/monument-player.json").read_text())
+        rows = rank_items(p, Settings(build="Heavenly Strike"), "monuments")
+        rosabella = next(r for r in rows if r["ID"] == "SeasonalArtifact6")
+        self.assertEqual(rosabella["Name"], "Rosabella's Village")
+        self.assertIsNone(rosabella["Priority"])
+        self.assertEqual(rosabella["Primary gain log10 (estimate)"], "0")
+        self.assertIsNone(rosabella["Next cost (estimate)"])
+        self.assertIsNone(rosabella["Affordable"])
+        self.assertIn("SeasonalArtifact25", p.monument_enchanted)
+        self.assertNotIn("SeasonalArtifact6", p.monument_enchanted)
+        self.assertEqual(len(rows), 33)
+        self.assertTrue(all(r["Status"] != "Inactive in snapshot" for r in rows))
+        self.assertEqual(rows[0]["ID"], "SeasonalArtifact51")
+        damage_only = rank_items(p, Settings(build="Heavenly Strike", gold_weight=0), "monuments")
+        self.assertEqual(damage_only[0]["ID"], "SeasonalArtifact43")
+
+    def test_alternate_growth_matches_screenshot_magnitudes(self):
+        # Check independent displayed magnitudes; level rounding and global
+        # equipment bonuses omitted here can shift the leading mantissa.
+        for key, level, enchanted, expected_log in (
+            ("SeasonalArtifact6", 32230, False, 696.567),
+            ("SeasonalArtifact36", 110060, False, 1019.272),
+            ("SeasonalArtifact45", 110060, False, 651.427),
+            ("SeasonalArtifact43", 125030, True, 1535.859)):
+            with self.subTest(key=key):
+                item = catalog()["monuments"][key]
+                actual = math.log10(float(item["EffectPerLevel"])) + float(item["GrowthExpo"]) * math.log10(level)
+                if enchanted:
+                    actual += math.log10(float(item["EnchantmentMult"]))
+                self.assertAlmostEqual(actual, expected_log, delta=.35)
+
+    def test_active_spells_control_conditional_monuments(self):
+        p = parse_player(api_player(monuments={"SeasonalArtifact28": 110100, "SeasonalArtifact51": 110100}))
+        settings = Settings(build="Heavenly Strike", active_spells=("BurstDamage", "TapBoost", "HandOfMidas", "TwilightFairy"))
+        portal = catalog()["monuments"]["SeasonalArtifact28"]
+        self.assertEqual(monument_weight(portal, settings, p), 0)
+        with_clone = Settings(build="Heavenly Strike", active_spells=("BurstDamage", "TapBoost", "HandOfMidas", "ShadowClone"))
+        self.assertGreater(monument_weight(portal, with_clone, p), 0)
+        menagerie = catalog()["monuments"]["SeasonalArtifact51"]
+        self.assertAlmostEqual(monument_weight(menagerie, settings, p), 4 * .7)
+        self.assertEqual(monument_weight(menagerie, Settings(active_spells=()), p), 0)
+        with self.assertRaises(ValueError):
+            Settings(active_spells=("BurstDamage", "BurstDamage"))
+
+    def test_artifact_amplifier_uses_owned_relevant_artifacts(self):
+        p = parse_player(api_player(artifacts={"Artifact30": 100, "Artifact31": 100}))
+        item = catalog()["monuments"]["SeasonalArtifact27"]
+        expected = sum(bonus_weight(catalog()["artifacts"][key]["BonusType"], Settings(build="Heavenly Strike")) or 0 for key in p.artifacts)
+        self.assertEqual(monument_weight(item, Settings(build="Heavenly Strike"), p), expected)
 
 
 if __name__ == "__main__":

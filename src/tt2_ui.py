@@ -10,7 +10,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
-from src.tt2_optimizer import Settings, optimize_skills, rank_items
+from src.tt2_optimizer import Settings, default_spells, optimize_skills, rank_items
 from src.tt2_player import ImportError, parse_player
 
 
@@ -42,11 +42,12 @@ def collection_card(row, currency, featured=False):
     priority = row["Priority"]
     badge = "Upgrade first" if featured else f"#{priority}" if priority else row["Status"]
     efficiency = row["Relative efficiency %"]
-    efficiency_text = f"{efficiency:g}% of best value" if efficiency is not None else "Unranked"
-    reason = "Primary effect + collection damage" if row["Status"] == "Ranked (estimate)" else row["Status"]
-    available = "Within current balance" if row["Affordable"] is True else "Save more first" if row["Affordable"] is False else "Balance not provided"
+    efficiency_text = f"{efficiency:g}% of best relative value" if efficiency is not None else "Unranked"
+    reason = "Primary effect + collection damage" if row["Status"] == "Ranked (estimate)" else "Build-relevant primary effect" if row["Status"] == "Ranked (primary effect estimate)" else row["Status"]
+    available = "Within current balance" if row["Affordable"] is True else "Save more first" if row["Affordable"] is False else "Price not modeled" if row["Next cost (estimate)"] is None else "Balance not provided"
     primary = row["Primary gain log10 (estimate)"]
     primary_text = "Primary effect does not benefit this build / gold source" if primary == "0" else "Primary effect is not modeled" if primary is None else "Primary effect benefits this build / gold source"
+    price_text = f'Next level ≈ {row["Next cost (estimate)"]} {currency}' if row["Next cost (estimate)"] else "Next-level price unavailable"
     st.markdown(
         f'<article class="collection-card{ " featured" if featured else ""}">'
         f'<div class="item-art">{artwork}</div><div class="item-body">'
@@ -56,7 +57,7 @@ def collection_card(row, currency, featured=False):
         f'<div class="item-reason">{primary_text}</div>'
         f'<div class="item-efficiency">{efficiency_text}</div>'
         f'<div class="item-meter"><span style="width:{efficiency or 0}%"></span></div>'
-        f'<div class="item-cost">Next level ≈ {row["Next cost (estimate)"] or "—"} {currency}</div>'
+        f'<div class="item-cost">{price_text}</div>'
         f'<div class="item-reason">{html.escape(reason)} · {available if priority else ""}</div>'
         '</div></article>', unsafe_allow_html=True,
     )
@@ -74,6 +75,10 @@ def inventory(player, settings, kind):
         return
     currency = "relics" if kind == "artifacts" else "mementos"
     ranked = [r for r in rows if r["Priority"] is not None]
+    if kind == "monuments":
+        st.caption("Build upgrade priorities use relevant primary effects and a relative cost curve. Off-build monuments stay unranked even if they are cheap. Shared All Monument Damage does not choose upgrades. Exact memento prices and affordability are unavailable.")
+        if any(r["Status"] == "Effect needs compatible season data" for r in rows):
+            st.info("Your screenshots correct several effects that differ from the bundled season table. Those entries show their in-game descriptions, but stay unranked until compatible growth and cost data are available.")
     if ranked:
         best = ranked[0]
         collection_card(best, currency, featured=True)
@@ -89,10 +94,14 @@ def inventory(player, settings, kind):
                 st.caption(f"Your current balance cannot buy a ranked next level. Save more {currency}.")
     else:
         st.info("No upgrade can be ranked from this collection: check caps, season activity and supported effects.")
-    st.caption("Upgrade value = modeled next-level gain per currency spent. Primary effects use your selected build and gold source. Off-build items receive no primary-effect gain, but can still add shared collection damage. These are estimates; conditional effects remain fixed.")
+    st.caption("Relative value = modeled primary gain divided by the snapshot's cost curve. Absolute prices are unavailable. Your build, gold source and active spells determine relevance; season counters remain fixed." if kind == "monuments" else "Upgrade value = modeled next-level gain per currency spent, including shared artifact damage. Primary effects use your selected build and gold source. These are estimates; conditional effects remain fixed.")
     search = st.text_input(f"Search {kind}", key=f"search_{kind}", placeholder="Name, effect, or ID")
     only = st.checkbox("Show ranked upgrades only", key=f"ranked_{kind}")
-    affordable = st.checkbox("Show affordable upgrades only", key=f"affordable_{kind}", disabled=(player.relics if kind == "artifacts" else player.mementos) is None)
+    if kind == "monuments":
+        # Clear an old checked filter from sessions created before prices were
+        # withheld, so a disabled control cannot hide every monument.
+        st.session_state["affordable_monuments"] = False
+    affordable = st.checkbox("Show affordable upgrades only", key=f"affordable_{kind}", disabled=kind == "monuments" or player.relics is None)
     visible = [r for r in rows if (not only or r["Priority"] is not None) and (not affordable or r["Affordable"] is True) and search.lower() in (r["Name"] + r["Effect"] + r["ID"]).lower()]
     display = [{field: r[field] for field in ("Priority", "Name", "Level", "Relative efficiency %", "Next cost (estimate)", "Affordable", "Gain log10 (estimate)", "Primary gain log10 (estimate)", "Collection gain log10 (estimate)", "Enchanted", "Status", "Effect", "ID")} for r in visible]
     if not visible:
@@ -238,7 +247,9 @@ def render():
             weight = st.slider("Gold weighting", 0.0, 1.0, .7, .05, help="Gold is converted into modeled pushing value with this exponent.")
             contracts = st.checkbox("Include mana-heavy contracts", value=False)
             attempts = st.number_input("Lightning Strike attempts per titan", 0, 1000, 60, help="Model assumption; adjust to match your attack rate and time to kill.")
-    settings = Settings(build, gold, weight, contracts, attempts, qol=qol)
+            spell_names = {"BurstDamage":"Heavenly Strike", "CritBoost":"Deadly Strike", "HandOfMidas":"Hand of Midas", "TapBoost":"Fire Sword", "HelperBoost":"War Cry", "ShadowClone":"Shadow Clone", "DualPet":"Dual Summon", "StreamOfBlades":"Blade Stream", "ThunderVolley":"Thunder Ship", "TwilightFairy":"Twilight Fairies", "GoldenMissile":"Golden Missile"}
+            active_spells = st.multiselect("Active spells for monument scoring", list(data["spell_reductions"]), default=list(default_spells(build)), max_selections=4, format_func=spell_names.get, key=f"monument_spells_{build}", help="Choose the spells active during your run. This controls spell boosts, Portal of Shadows, and damage/gold per activated spell.")
+    settings = Settings(build, gold, weight, contracts, attempts, qol=qol, active_spells=tuple(active_spells))
 
     player = st.session_state.get("tt2_player")
     if not player:
@@ -329,5 +340,5 @@ def render():
     with monument_tab:
         st.subheader("Your seasonal monuments")
         st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
-        st.caption("Season activity comes from the pinned snapshot. Monument effect and collection-damage exponents use their own table values; live season counters and equipment interactions are not simulated.")
+        st.caption("Monument season data matches your supplied screenshots and export. Live season counters and equipment interactions are not fully simulated; use Advanced options to set your active spells.")
         inventory(player, settings, "monuments")

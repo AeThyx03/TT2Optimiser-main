@@ -49,7 +49,7 @@ def levels(value, id_key, label):
         # GameHive API and normalized examples use "level"/"Level".
         val = first(row, "level", "Level", "lv", "Lv") if isinstance(row, dict) else row
         result[key] = number(val, f"{label} {key} level", integer=True)
-        if isinstance(row, dict) and first(row, "is_enchanted", "enchanted", default=False) in (True, 1, "true"):
+        if isinstance(row, dict) and first(row, "is_enchanted", "enchanted", "e", default=False) in (True, 1, "true"):
             enchanted.add(key)
     return result, enchanted
 
@@ -131,6 +131,9 @@ def parse_player(payload, source="JSON"):
     monuments, monument_enchanted = levels(first(payload, "seasonal_artifacts", "seasonalArtifacts", "monuments"), "artifact_id", "Monuments")
     for collection, kind in ((artifacts, "artifacts"), (monuments, "monuments")):
         name_map = {s["Name"]: k for k, s in data[kind].items()}
+        for k, item in data[kind].items():
+            if "LegacyName" in item:
+                name_map.setdefault(item["LegacyName"], k)
         for k in list(collection):
             if k in name_map:
                 target = name_map[k]

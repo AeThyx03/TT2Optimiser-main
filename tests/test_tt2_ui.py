@@ -1,4 +1,5 @@
 import unittest
+import json
 from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
@@ -21,13 +22,20 @@ class PlayerUITests(unittest.TestCase):
 
     def test_collection_priorities_and_filters(self):
         app = self.app()
-        app.text_area(key="json_input").input((ROOT / "examples/player-demo.json").read_text()).run()
+        payload = json.loads((ROOT / "tests/fixtures/monument-player.json").read_text())
+        payload["artifacts"] = {"Artifact20": 10}
+        app.text_area(key="json_input").input(json.dumps(payload)).run()
         self.click(app, "Import player")
         self.assertFalse(app.exception)
+        next(s for s in app.selectbox if s.label == "Damage type").select("Heavenly Strike").run()
         self.assertTrue(any("Focus upgrades on" in x.value for x in app.info))
         cards = [x.value for x in app.markdown if "collection-card" in x.value]
         self.assertTrue(any("Upgrade first" in x for x in cards))
         self.assertTrue(any("data:image/png;base64" in x for x in cards))
+        rosabella = next(x for x in cards if "Rosabella" in x)
+        self.assertIn("Not recommended", rosabella)
+        self.assertNotIn("Upgrade first", rosabella)
+        self.assertTrue(app.checkbox(key="affordable_monuments").disabled)
         app.text_input(key="search_monuments").input("no matching monument").run()
         self.assertFalse(app.exception)
         self.assertTrue(any("No items match" in x.value for x in app.info))

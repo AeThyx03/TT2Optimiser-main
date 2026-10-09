@@ -1,0 +1,269 @@
+{
+  "source": "User-supplied in-game screenshots IMG_2730.PNG through IMG_2762.PNG, cross-checked with the supplied player JSON IDs and levels. Growth values match EndgameSeasonArtifactInfo_1.csv; names corrected by screenshots and export.",
+  "monuments": {
+    "SeasonalArtifact24": {
+      "Name": "Twin Viper Rivers",
+      "BonusType": "AuraBoost",
+      "CategoryID": "Viper",
+      "MaxLevel": 0,
+      "Image": "IMG_2730.PNG",
+      "Description": "Increases the primary effect of your Aura equipment type."
+    },
+    "SeasonalArtifact25": {
+      "Name": "Nightcrag Market",
+      "BonusType": "TwilightBoostPerSeasonFairy",
+      "CategoryID": "Viper",
+      "MaxLevel": 0,
+      "Image": "IMG_2731.PNG",
+      "Description": "Increases Twilight Damage based on fairies collected this Transcendence."
+    },
+    "SeasonalArtifact28": {
+      "Name": "Portal of Shadows",
+      "BonusType": "ShadowCloneAllSkillBoost",
+      "CategoryID": "Viper",
+      "MaxLevel": 0,
+      "Image": "IMG_2732.PNG",
+      "Description": "Increases spell strength while Shadow Clone is active."
+    },
+    "SeasonalArtifact32": {
+      "Name": "Midnight Pass",
+      "BonusType": "SwordAttackDamage",
+      "CategoryID": "Viper",
+      "MaxLevel": 0,
+      "Image": "IMG_2733.PNG",
+      "Description": "Increases Sword Master, Heavenly Strike, Shadow Clone, Dagger and Gold Gun damage."
+    },
+    "SeasonalArtifact34": {
+      "Name": "Temperance Training Ground",
+      "BonusType": "AllDamagePerSeasonDay",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2735.PNG",
+      "Description": "Increases all damage based on days since the start of this Transcendence."
+    },
+    "SeasonalArtifact35": {
+      "Name": "Nine Pentacle Garden",
+      "BonusType": "BuildBoostHSDGGG",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2736.PNG",
+      "Description": "Increases Heavenly Strike, Dagger and Gold Gun damage."
+    },
+    "SeasonalArtifact36": {
+      "Name": "Emblem of Worlds",
+      "BonusType": "GoldAll",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2737.PNG",
+      "Description": "Increases gold earned from all sources."
+    },
+    "SeasonalArtifact38": {
+      "Name": "Knight's Fountain of Cups",
+      "BonusType": "ArmorBoost",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2739.PNG",
+      "Description": "Increases the primary effect of your Armor equipment type."
+    },
+    "SeasonalArtifact40": {
+      "Name": "Queen of Swords' Throne",
+      "BonusType": "SlashBoost",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2740.PNG",
+      "Description": "Increases the primary effect of your Slash equipment type."
+    },
+    "SeasonalArtifact43": {
+      "Name": "Hierophant's Library",
+      "BonusType": "TapDamage",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2741.PNG",
+      "Description": "Increases Sword Master, Pet, Heavenly Strike, Dagger, Shadow Clone and Gold Gun damage."
+    },
+    "SeasonalArtifact17": {
+      "Name": "Celestial's Thumb",
+      "BonusType": "AllArtifactGoldEffect",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2742.PNG",
+      "Description": "Increases the gold multiplier granted by each gold-based artifact."
+    },
+    "SeasonalArtifact45": {
+      "Name": "Heartbloom Grove",
+      "BonusType": "TwilightBoost",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2743.PNG",
+      "Description": "Increases Heavenly Strike and Shadow Clone damage."
+    },
+    "SeasonalArtifact46": {
+      "Name": "Titanroot Arch",
+      "BonusType": "KnightBonusBoost",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2744.PNG",
+      "Description": "Increases Tap Damage, Pet Damage and Fire Sword Damage."
+    },
+    "SeasonalArtifact47": {
+      "Name": "Cradle of the First Rain",
+      "BonusType": "BoostedSwordAttackDamage",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2745.PNG",
+      "Description": "Increases All Damage and Critical Damage."
+    },
+    "SeasonalArtifact48": {
+      "Name": "The Stoneleaf Throne",
+      "BonusType": "TapDamagePerSeasonPrestige",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2746.PNG",
+      "Description": "Increases Tap Damage based on prestiges this Transcendence."
+    },
+    "SeasonalArtifact49": {
+      "Name": "Canopy of Evergold",
+      "BonusType": "DamagePerEventSet",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2747.PNG",
+      "Description": "Increases damage based on owned Event Sets."
+    },
+    "SeasonalArtifact50": {
+      "Name": "The Cortex Coil Spire",
+      "BonusType": "ActiveTapDamage",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2748.PNG",
+      "Description": "Increases Tap Damage while tapping, benefiting Sword Master, Pet, Heavenly Strike, Dagger, Shadow Clone and Gold Gun."
+    },
+    "SeasonalArtifact51": {
+      "Name": "The Glassbone Menagerie",
+      "BonusType": "GoldPerRunningActiveSkill",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2749.PNG",
+      "Description": "Multiplies gold for each currently active spell, up to four spells."
+    },
+    "SeasonalArtifact53": {
+      "Name": "Isle of Broken Blueprints",
+      "BonusType": "ExoticPetDamageEffect",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2750.PNG",
+      "Description": "Increases damage bonuses granted by each Exotic Pet, active or passive."
+    },
+    "SeasonalArtifact55": {
+      "Name": "The Sorcerer's Peace",
+      "BonusType": "GoldSpecialty",
+      "CategoryID": "Celestial",
+      "MaxLevel": 0,
+      "Image": "IMG_2751.PNG",
+      "Description": "Increases Fairy Gold and Heart of Gold."
+    },
+    "SeasonalArtifact31": {
+      "Name": "Hideout of Stratagem",
+      "BonusType": "CannonDamagePerSeasonTitan",
+      "CategoryID": "Viper",
+      "MaxLevel": 0,
+      "Image": "IMG_2753.PNG",
+      "Description": "Increases Cannon Damage based on titans defeated this Transcendence."
+    },
+    "SeasonalArtifact42": {
+      "Name": "Three Cup Mana Pool",
+      "BonusType": "CompanionDamage",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2754.PNG",
+      "Description": "Increases Pet, Clan Ship and Shadow Clone damage."
+    },
+    "SeasonalArtifact41": {
+      "Name": "Lost Cups Five",
+      "BonusType": "BuildBoostDGPetCS",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2755.PNG",
+      "Description": "Increases Dagger, Pet and Clan Ship damage."
+    },
+    "SeasonalArtifact18": {
+      "Name": "Sword Master's Shrine",
+      "BonusType": "UltraDaggerDamage",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2756.PNG",
+      "Description": "Increases Dagger damage."
+    },
+    "SeasonalArtifact23": {
+      "Name": "King Cobra Statue",
+      "BonusType": "GoldPerMythicSet",
+      "CategoryID": "Viper",
+      "MaxLevel": 40,
+      "Image": "IMG_2757.PNG",
+      "Description": "Multiplies gold for each owned Mythic equipment set."
+    },
+    "SeasonalArtifact26": {
+      "Name": "Valley of Blades",
+      "BonusType": "HelperWeaponBoost",
+      "CategoryID": "Viper",
+      "MaxLevel": 40,
+      "Image": "IMG_2758.PNG",
+      "Description": "Increases the damage multiplier granted by hero weapons."
+    },
+    "SeasonalArtifact29": {
+      "Name": "Ancient Origin of the Vipers",
+      "BonusType": "CritDamagePerSeasonDay",
+      "CategoryID": "Viper",
+      "MaxLevel": 40,
+      "Image": "IMG_2759.PNG",
+      "Description": "Increases Critical Damage based on days since the start of this Transcendence."
+    },
+    "SeasonalArtifact30": {
+      "Name": "Thieves' Guild",
+      "BonusType": "DamagePerEquipmentSet",
+      "CategoryID": "Viper",
+      "MaxLevel": 40,
+      "Image": "IMG_2760.PNG",
+      "Description": "Multiplies damage for each owned equipment set of any rarity."
+    },
+    "SeasonalArtifact52": {
+      "Name": "The Clocksout Engine",
+      "BonusType": "JackpotGoldPerSeasonDay",
+      "CategoryID": "Celestial",
+      "MaxLevel": 40,
+      "Image": "IMG_2761.PNG",
+      "Description": "Increases Jackpot Gold based on days since the start of this Transcendence."
+    },
+    "SeasonalArtifact54": {
+      "Name": "The Scarred Constellation",
+      "BonusType": "DamagePerSoloRaidWorld",
+      "CategoryID": "Celestial",
+      "MaxLevel": 40,
+      "Image": "IMG_2762.PNG",
+      "Description": "Multiplies damage based on completed Solo Raid Worlds."
+    },
+    "SeasonalArtifact6": {
+      "Name": "Rosabella's Village",
+      "BonusType": "DeadlyDamageCompanion",
+      "CategoryID": "Viper",
+      "MaxLevel": 0,
+      "Image": "IMG_2752.PNG",
+      "Description": "Increases damage dealt by companions (Pet, Clan Ship and Shadow Clone) when Deadly Strike triggers. Does not boost Heavenly Strike."
+    },
+    "SeasonalArtifact27": {
+      "Name": "Mound of Brothers' Meet",
+      "BonusType": "AllArtifactDamageEffect",
+      "CategoryID": "Arcanas",
+      "MaxLevel": 0,
+      "Image": "IMG_2738.PNG",
+      "Description": "Increases the damage bonus granted by each damage-based artifact."
+    },
+    "SeasonalArtifact37": {
+      "Name": "Grand Air Chariot",
+      "BonusType": "AllActiveSkillAmount",
+      "CategoryID": "Viper",
+      "MaxLevel": 0,
+      "Image": "IMG_2734.PNG",
+      "Description": "Improves the primary effect of each spell."
+    }
+  }
+}
