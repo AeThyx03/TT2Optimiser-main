@@ -528,11 +528,7 @@ def default_spells(build):
 
 
 def monument_lifetime_targets(player, settings):
-    """Do not publish experimental percentages for an unvalidated cost curve."""
-    if not catalog().get("monument_cost_model_validated", True):
-        return {key: 0.0 if (item := catalog()["monuments"].get(key)) and
-                (int(item["MaxLevel"]) or monument_weight(item, settings, player) == 0) else None
-                for key in player.monuments}
+    """Return estimated targets; cost calibration is not an interaction gate."""
     return monument_experimental_targets(player, settings)
 
 

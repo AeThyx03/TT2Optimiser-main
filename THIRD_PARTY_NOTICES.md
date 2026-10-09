@@ -53,8 +53,8 @@ No provider source code is copied into this application.
   primary effect once. Artifact priorities also include additive collection
   damage. Monument ordering includes a screenshot-matched shared-damage curve,
   but remains experimental because the relative cost curve fails the supplied
-  lifetime-share comparison. Lifetime allocation percentages are withheld until
-  costs are calibrated. Monument absolute prices and affordability are withheld.
+  lifetime-share comparison. Lifetime allocation percentages remain experimental estimates; costs are
+  not calibrated. Monument absolute prices and affordability are withheld.
   Conditional counters and synergies remain estimates. Measured upgrade checks
   validate only the observed range, not the global optimum.
 - Monument parameters use EndgameSeasonArtifactInfo_1.csv, whose effects and

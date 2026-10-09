@@ -45,7 +45,6 @@ def catalog():
         "skills": skills,
         "artifacts": {r["ArtifactID"]: r for r in table("ArtifactInfo.csv")},
         "monuments": monuments,
-        "monument_cost_model_validated": False,
         "monument_source": "EndgameSeasonArtifactInfo_1.csv, cross-checked with supplied screenshots and export",
         "bonuses": {r["BonusType"]: r for r in table("BonusInfo.csv")},
         "reductions": json.loads((DATA / "reductions.json").read_text()),

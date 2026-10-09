@@ -14,14 +14,14 @@ class MonumentValidationTests(unittest.TestCase):
         for row in report["shared_damage_checks"]:
             self.assertAlmostEqual(row["Observed next-level damage gain log10"], row["Predicted next-level damage gain log10"], delta=.001)
 
-    def test_unvalidated_live_targets_are_not_published(self):
+    def test_live_targets_display_estimates_without_validation_gate(self):
         from pathlib import Path
         from src.tt2_player import parse_player
         from src.tt2_optimizer import monument_lifetime_targets, Settings
         p = parse_player((Path(__file__).parent / "fixtures/monument-player.json").read_text())
         targets = monument_lifetime_targets(p, Settings(build="Heavenly Strike"))
-        self.assertIsNone(targets["SeasonalArtifact43"])
-        self.assertIsNone(targets["SeasonalArtifact51"])
+        self.assertGreater(targets["SeasonalArtifact43"], 0)
+        self.assertGreater(targets["SeasonalArtifact51"], 0)
         self.assertEqual(targets["SeasonalArtifact6"], 0)
 
     def observations(self):

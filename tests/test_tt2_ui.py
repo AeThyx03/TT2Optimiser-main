@@ -38,7 +38,7 @@ class PlayerUITests(unittest.TestCase):
         self.assertIn("0.00% target of lifetime mementos", rosabella)
         self.assertFalse(any("% of best relative value" in x for x in cards))
         glassbone = next(x for x in cards if "The Glassbone Menagerie" in x)
-        self.assertIn("Target awaiting cost validation", glassbone)
+        self.assertIn("target of lifetime mementos", glassbone)
         self.assertNotIn("Current lifetime share", glassbone)
         self.assertEqual(sum('The Glassbone Menagerie</h4>' in x for x in cards), 1)
         self.assertFalse(any(x.key == "affordable_monuments" for x in app.checkbox))

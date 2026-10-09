@@ -42,16 +42,16 @@ def collection_card(row, currency, featured=False):
     cost_text = f'<div class="item-cost">Next level ≈ {price} {currency}</div>' if price else ""
     if currency == "mementos":
         percentage = row["Target lifetime mementos % (estimate)"]
-        value_text = f"{percentage:.2f}% target of lifetime mementos" if percentage is not None else "Target awaiting cost validation"
+        value_text = f"{percentage:.2f}% target of lifetime mementos" if percentage is not None else ""
         cost_text = ""
+    value_html = (f'<div class="item-value"><div class="item-efficiency">{value_text}</div>'
+                  f'<div class="item-meter"><span style="width:{percentage or 0}%"></span></div>{cost_text}</div>') if value_text else ""
     st.markdown(
         f'<article class="collection-card{ " featured" if featured else ""}{ " unranked" if priority is None else ""}">'
         f'{artwork}<div class="item-body">'
         f'<span class="item-badge">{html.escape(badge)}</span><h4>{name}</h4>'
         f'<div class="item-level">Level {html.escape(row["Level"])}{ " · Enchanted" if row["Enchanted"] else ""}</div>'
-        f'</div><div class="item-value"><div class="item-efficiency">{value_text}</div>'
-        f'<div class="item-meter"><span style="width:{percentage or 0}%"></span></div>'
-        f'{cost_text}</div></article>', unsafe_allow_html=True,
+        f'</div>{value_html}</article>', unsafe_allow_html=True,
     )
 
 

@@ -310,7 +310,7 @@ class ItemTests(unittest.TestCase):
         self.assertEqual(damage_only["SeasonalArtifact51"], 0)
         self.assertGreater(damage_only["SeasonalArtifact43"], targets["SeasonalArtifact43"])
         lone = parse_player(api_player(monuments={"Rosabella's Village": 1}))
-        self.assertEqual(monument_lifetime_targets(lone, Settings(build="Heavenly Strike"))["SeasonalArtifact6"], 0)
+        self.assertIsNone(monument_lifetime_targets(lone, Settings(build="Heavenly Strike"))["SeasonalArtifact6"])
 
     def test_enchantment_aliases_in_both_collections(self):
         data = api_player(artifacts={"Book of Prophecy": {"level": 1, "enchanted": True}},
