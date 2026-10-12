@@ -2,9 +2,85 @@
   "source": "User screenshots supplied October 9, 2026; levels and lifetime shares are rounded display values, not exact exports.",
   "same_lifetime_denominator_assumed": true,
   "observations": [
-    {"monument": "SeasonalArtifact43", "level_display": 125220, "lifetime_share_percent": 12.49, "damage_percent": "1.69e7047", "next_damage_percent": "1.81e7047", "next_level_cost": "3.53e68"},
-    {"monument": "SeasonalArtifact51", "level_display": 126330, "lifetime_share_percent": 23.95, "damage_percent": "3.14e7080", "next_damage_percent": "3.36e7080"},
-    {"monument": "SeasonalArtifact51", "level_display": 126330, "lifetime_share_percent": 23.97, "damage_percent": "3.36e7080", "next_damage_percent": "3.60e7080"}
+    {
+      "monument": "SeasonalArtifact43",
+      "level_display": 125220,
+      "lifetime_share_percent": 12.49,
+      "damage_percent": "1.69e7047",
+      "next_damage_percent": "1.81e7047",
+      "next_level_cost": "3.53e68"
+    },
+    {
+      "monument": "SeasonalArtifact51",
+      "level_display": 126330,
+      "lifetime_share_percent": 23.95,
+      "damage_percent": "3.14e7080",
+      "next_damage_percent": "3.36e7080"
+    },
+    {
+      "monument": "SeasonalArtifact51",
+      "level_display": 126330,
+      "lifetime_share_percent": 23.97,
+      "damage_percent": "3.36e7080",
+      "next_damage_percent": "3.60e7080"
+    }
   ],
-  "missing": ["Exact before/after levels", "Glassbone next-level memento cost", "Matched before/after memento balances or total lifetime mementos", "Confirmation that discovery, enchantment and cost modifiers were unchanged"]
+  "missing": [
+    "Exact before/after levels",
+    "Glassbone next-level memento cost",
+    "Matched before/after memento balances or total lifetime mementos",
+    "Confirmation that discovery, enchantment and cost modifiers were unchanged"
+  ],
+  "upgrade_session": {
+    "source": "Eight user screenshots and paired player exports supplied October 12, 2026. Prices and levels are rounded displays; x1000 is the selected purchase count.",
+    "version": null,
+    "export_mementos_before": "7.259e72",
+    "export_mementos_after": "7.259e72",
+    "balances": [
+      "2.42e72",
+      "1.51e72",
+      "1.03e72"
+    ],
+    "purchases": [
+      {
+        "monument": "SeasonalArtifact51",
+        "levels_bought": 1000,
+        "level_before_display": 126340,
+        "level_after_display": 127340,
+        "export_level_before": 126300,
+        "export_level_after": 127300,
+        "next_level_price": "6.74e68",
+        "batch_price": "9.12e71",
+        "primary_before": "1.15e433",
+        "primary_after": "2.22e433",
+        "pool_before_percent": "3.60e7080",
+        "pool_after_percent": "1.57e7110",
+        "following_quote_levels": 942,
+        "following_quote_price": "1.50e72"
+      },
+      {
+        "monument": "SeasonalArtifact43",
+        "levels_bought": 1000,
+        "level_before_display": 125220,
+        "level_after_display": 126220,
+        "export_level_before": 125200,
+        "export_level_after": 126200,
+        "next_level_price": "3.53e68",
+        "batch_price": "4.78e71",
+        "primary_before": "1.13e1536",
+        "primary_after": "1.21e1537",
+        "pool_before_percent": "1.57e7110",
+        "pool_after_percent": "1.57e7110",
+        "following_quote_levels": 1000,
+        "following_quote_price": "8.52e71"
+      }
+    ],
+    "limitations": [
+      "No version field in either export",
+      "Export levels are rounded to about 100 levels at this magnitude",
+      "Displayed prices have three significant figures",
+      "A fitted local cost curve is not a verified global upgrade formula",
+      "Unchanged export Mementos is not the displayed spendable balance"
+    ]
+  }
 }

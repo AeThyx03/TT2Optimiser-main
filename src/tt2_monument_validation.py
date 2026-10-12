@@ -7,6 +7,47 @@ from pathlib import Path
 from src.tt2_data import catalog
 
 
+def measured_session_check(gold_weight=.7, active_spells=4):
+    """Independent batch evidence; never promote a local fit to a global law.
+
+    Fit a geometric price sequence from each initial single/batch quote, then
+    check its following quote, which was not used in fitting. Compare measured
+    primary and aggregate shared gains at the actual purchase sequence.
+    """
+    evidence = json.loads((Path(__file__).resolve().parents[1] / "data/tt2/monument_validation_observations.json").read_text())
+    session = evidence["upgrade_session"]
+    rows = []
+    for record in session["purchases"]:
+        count = record["levels_bought"]
+        ratio = float(Decimal(record["batch_price"]) / Decimal(record["next_level_price"]))
+        def series(rate, n):
+            return math.expm1(rate * n) / math.expm1(rate) if rate else float(n)
+        lo, hi = 0.0, .01
+        for _ in range(80):
+            mid = (lo + hi) / 2
+            if series(mid, count) < ratio:
+                lo = mid
+            else:
+                hi = mid
+        rate = (lo + hi) / 2
+        following_ratio = float(Decimal(record["following_quote_price"]) / Decimal(record["next_level_price"]))
+        predicted = math.exp(rate * count) * series(rate, record["following_quote_levels"])
+        primary = float(Decimal(record["primary_after"]).log10() - Decimal(record["primary_before"]).log10())
+        shared = float(Decimal(record["pool_after_percent"]).log10() - Decimal(record["pool_before_percent"]).log10())
+        weight = gold_weight * active_spells if record["monument"] == "SeasonalArtifact51" else 1.0
+        gain = shared + weight * primary
+        rows.append({"monument": record["monument"], "levels_bought": count,
+                     "cost": record["batch_price"], "gain_log10": gain,
+                     "primary_gain_log10": primary, "pool_gain_log10": shared,
+                     "local_price_growth_per_level": math.expm1(rate),
+                     "held_out_quote_relative_error": predicted / following_ratio - 1,
+                     "log_efficiency": math.log10(gain) - float(Decimal(record["batch_price"]).log10())})
+    return {"purchases": rows,
+            "glassbone_to_hierophant_efficiency": 10 ** (rows[0]["log_efficiency"] - rows[1]["log_efficiency"]),
+            "export_mementos_changed": session["export_mementos_before"] != session["export_mementos_after"],
+            "global_cost_model_validated": False, "limitations": session["limitations"]}
+
+
 def supplied_screenshot_check():
     evidence = json.loads((Path(__file__).resolve().parents[1] / "data/tt2/monument_validation_observations.json").read_text())
     h, g = evidence["observations"][:2]

@@ -528,74 +528,36 @@ def default_spells(build):
 
 
 def monument_lifetime_targets(player, settings):
-    """Return estimated targets; cost calibration is not an interaction gate."""
+    """Return provisional primary-effect target shares without a UI gate."""
     return monument_experimental_targets(player, settings)
 
 
 def monument_experimental_targets(player, settings):
-    """Estimated investment mix including a dominant shared-damage monument.
+    """Provisional primary-effect allocation, not a solved memento budget.
 
-    Reconstruct a relative investment budget from imported levels. Enumerate
-    each eligible monument as the shared-damage leader, optimize its share,
-    and distribute the remainder by primary-effect marginal power. At these
-    levels log(sum(shared damage)) is effectively its largest term. This is
-    a concentration estimate, not a redistribution of existing sunk costs.
+    The available CSV does not establish the monument upgrade-cost law.
+    Do not reconstruct spending or select a shared-damage pump using the
+    rejected artifact-style polynomial cost model. Weighted primary growth
+    supplies a cost-independent fallback, assuming comparable spending
+    elasticities. Shared damage is still reported separately by rank_items.
     """
     scores = {}
-    investment_logs = []
     items = catalog()["monuments"]
+    targets = {key: None for key in player.monuments}
     for key, level in player.monuments.items():
         item = items.get(key)
         if not item or not level or item["IsActive"] != "TRUE":
             continue
-        # A capped monument cannot absorb long-run investment.
         if int(item["MaxLevel"]) or not item.get("PrimaryModelAvailable", True):
             continue
         weight = monument_weight(item, settings, player)
         growth = float(item["GrowthExpo"])
-        cost_power = float(item["CostExpo"]) + 1
-        if cost_power > 0 and float(item.get("CostCoef", 1)) > 0:
-            investment_logs.append(log(item.get("CostCoef", 1)) - log(cost_power) + cost_power * float(level.log10()))
-        if weight is not None and weight > 0 and growth > 0 and cost_power > 0 and float(item["EffectPerLevel"]) > 0:
-            scores[key] = weight * growth / cost_power
-    targets = {key: None for key in player.monuments}
+        if weight is not None and weight > 0 and growth > 0 and float(item["EffectPerLevel"]) > 0:
+            scores[key] = weight * growth
     if not scores:
         return targets
     total = sum(scores.values())
     shares = {key: score / total for key, score in scores.items()}
-    budget_log = log_sum(investment_logs) if investment_logs else 0
-    best_value = -math.inf
-    for pump in scores:
-        item = items[pump]
-        damage_base = float(item.get("DamageBonus", 0))
-        damage_exponent = float(item.get("DamageExpo", 0))
-        power = float(item["CostExpo"]) + 1
-        r = damage_exponent / power
-        if damage_base <= 1 or not 0 < r < 1:
-            continue
-        level_log = (budget_log + log(power) - log(item.get("CostCoef", 1))) / power
-        # Avoid pretending to resolve an unsupported extreme-level season.
-        if damage_exponent * level_log > 300:
-            return targets
-        damage = math.log10(damage_base) * 10 ** (damage_exponent * level_log)
-        own = scores[pump] / math.log(10)
-        rest = (total - scores[pump]) / math.log(10)
-        if rest <= 0:
-            candidate = {pump: 1.0}
-        else:
-            lo, hi = 1e-12, 1 - 1e-12
-            for _ in range(80):
-                fraction = (lo + hi) / 2
-                derivative = damage * r * fraction ** (r - 1) + own / fraction - rest / (1 - fraction)
-                if derivative > 0:
-                    lo = fraction
-                else:
-                    hi = fraction
-            fraction = (lo + hi) / 2
-            candidate = {k: fraction if k == pump else (1 - fraction) * v / (total - scores[pump]) for k, v in scores.items()}
-        value = damage * candidate[pump] ** r + sum(scores[k] * math.log10(v) for k, v in candidate.items())
-        if value > best_value:
-            best_value, shares = value, candidate
     # Largest-remainder rounding keeps displayed targets at exactly 100.00%.
     exact = {key: 10000 * share for key, share in shares.items()}
     units = {key: math.floor(value) for key, value in exact.items()}
@@ -611,12 +573,12 @@ def monument_experimental_targets(player, settings):
 
 
 def rank_items(player, settings, kind="artifacts"):
-    """Finite next-level gains per modeled cost, not a full spending plan.
+    """Artifact cost rankings and monument gain/allocation comparisons.
 
-    1+c*L**g effect and C*L**p cost model. Monument growth and cost use their
-    own CSV parameters. Conditional factors remain fixed. Includes additive
-    artifact collection damage; monument priorities include level-exponential
-    shared damage and require a relevant modeled primary effect.
+    Primary effects use 1+c*L**g. Artifact costs use C*L**p. Monument
+    gains use their own CSV parameters. Conditional factors remain fixed. Includes
+    additive artifact collection damage. Monument gains include level-exponential
+    shared damage, but no gain-per-memento ranking is issued without costs.
     """
     if kind not in {"artifacts", "monuments"}:
         raise ValueError("Unsupported collection.")
@@ -652,7 +614,7 @@ def rank_items(player, settings, kind="artifacts"):
             model_available = kind != "monuments" or item.get("PrimaryModelAvailable", True)
             row["Status"] = "Not owned" if not level else "Inactive in snapshot" if not active else "Maxed" if cap and level >= cap else "Farming / BoS" if key == "Artifact22" else "Effect not modeled; collection damage only" if weight is None else "Other build; collection damage only" if weight == 0 else "Ranked (estimate)"
             if kind == "monuments" and level and active and not (cap and level >= cap):
-                row["Status"] = "Not recommended for this build / gold source" if weight == 0 else "Effect needs compatible season data" if not model_available else "Effect or condition not modeled" if weight is None else "Ranked (primary effect estimate)"
+                row["Status"] = "Not recommended for this build / gold source" if weight == 0 else "Effect needs compatible season data" if not model_available else "Effect or condition not modeled" if weight is None else "Primary allocation estimate"
             if kind == "monuments" and weight == 0:
                 row["Primary gain log10 (estimate)"] = "0"
             if level and active and not (cap and level >= cap) and key != "Artifact22":
@@ -693,26 +655,30 @@ def rank_items(player, settings, kind="artifacts"):
                         if gain > 0:
                             gains.append(log(gain))
                             row["Collection gain log10 (estimate)"] = scientific_from_log(log(gain))
-                cost = log(item["CostCoef"]) + float(item["CostExpo"]) * ln_level
-                # Monument coefficients give a relative curve; absolute prices
-                # also require the acquisition/season scaling absent here.
-                # Never show the tiny artifact-style value as a memento price.
+                # The polynomial price law is supported only for artifacts.
+                # Monument CSV coefficients alone do not establish prices.
                 if kind == "artifacts":
+                    cost = log(item["CostCoef"]) + float(item["CostExpo"]) * ln_level
                     row["Next cost (estimate)"] = scientific_from_log(cost)
                     row["Affordable"] = None if balance is None else balance > 0 and cost <= float(balance.log10())
                 if gains:
                     combined = log_sum(gains)
                     row["Gain log10 (estimate)"] = scientific_from_log(combined)
-                    row["log_efficiency"] = combined - cost
+                    if kind == "artifacts":
+                        row["log_efficiency"] = combined - cost
         rows.append(row)
+    if kind == "monuments":
+        targets = monument_lifetime_targets(player, settings)
+        for row in rows:
+            row["Target lifetime mementos % (estimate)"] = targets[row["ID"]]
+            row["Relative efficiency %"] = None
+        # Allocation weights are not gain-per-memento upgrade priorities.
+        rows.sort(key=lambda r: (-(targets[r["ID"]] or 0), r["Name"]))
+        return rows
     rows.sort(key=lambda r: (r["log_efficiency"] is None, -(r["log_efficiency"] or 0), r["Name"]))
     for index, row in enumerate((r for r in rows if r["log_efficiency"] is not None), 1):
         row["Priority"] = index
     best = next((r["log_efficiency"] for r in rows if r["Priority"] == 1), None)
     for row in rows:
         row["Relative efficiency %"] = None if row["log_efficiency"] is None else round(100 * 10 ** (row["log_efficiency"] - best), 2)
-    if kind == "monuments":
-        targets = monument_lifetime_targets(player, settings)
-        for row in rows:
-            row["Target lifetime mementos % (estimate)"] = targets[row["ID"]]
     return rows

@@ -51,10 +51,11 @@ No provider source code is copied into this application.
 - Primary gains use finite ratios for 1 + coefficient × level^growth. Large
   levels use log-space derivatives; imported enchantment multipliers scale the
   primary effect once. Artifact priorities also include additive collection
-  damage. Monument ordering includes a screenshot-matched shared-damage curve,
-  but remains experimental because the relative cost curve fails the supplied
-  lifetime-share comparison. Lifetime allocation percentages remain experimental estimates; costs are
-  not calibrated. Monument absolute prices and affordability are withheld.
+  damage. Monument comparisons include a screenshot-matched shared-damage curve.
+  The former relative cost curve fails the supplied lifetime-share comparison
+  and is no longer used for upgrade ordering or budget reconstruction.
+  Allocation percentages are provisional weighted primary-effect shares;
+  they omit shared-damage allocation until upgrade costs are established. Monument absolute prices and affordability are withheld.
   Conditional counters and synergies remain estimates. Measured upgrade checks
   validate only the observed range, not the global optimum.
 - Monument parameters use EndgameSeasonArtifactInfo_1.csv, whose effects and

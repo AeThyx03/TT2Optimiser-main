@@ -2,10 +2,26 @@ import json
 import math
 import unittest
 
-from src.tt2_monument_validation import validate_purchases, supplied_screenshot_check
+from src.tt2_monument_validation import validate_purchases, supplied_screenshot_check, measured_session_check
 
 
 class MonumentValidationTests(unittest.TestCase):
+    def test_measured_batches_check_separate_following_quotes(self):
+        report = measured_session_check()
+        self.assertFalse(report["global_cost_model_validated"])
+        self.assertFalse(report["export_mementos_changed"])
+        for row in report["purchases"]:
+            self.assertLess(abs(row["held_out_quote_relative_error"]), .01)
+            self.assertGreater(row["local_price_growth_per_level"], .00057)
+            self.assertLess(row["local_price_growth_per_level"], .00059)
+        self.assertAlmostEqual(report["glassbone_to_hierophant_efficiency"], 15.4936, delta=.01)
+        self.assertEqual(report["purchases"][1]["pool_gain_log10"], 0)
+
+    def test_measured_gold_weight_changes_comparison_without_erasing_shared_damage(self):
+        report = measured_session_check(gold_weight=0)
+        self.assertAlmostEqual(report["purchases"][0]["gain_log10"], 29.6396, places=3)
+        self.assertGreater(report["glassbone_to_hierophant_efficiency"], 15)
+
     def test_supplied_screenshots_reject_cost_curve_despite_rounding(self):
         report = supplied_screenshot_check()
         self.assertTrue(report["contradicted_even_with_rounding"])

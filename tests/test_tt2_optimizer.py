@@ -249,7 +249,8 @@ class ItemTests(unittest.TestCase):
                 self.assertIsNone(rosabella["Collection gain log10 (estimate)"])
                 self.assertIn("Not recommended", rosabella["Status"])
                 self.assertEqual(rows[0]["ID"], "SeasonalArtifact43")
-                self.assertEqual(rows[0]["Priority"], 1)
+                self.assertIsNone(rows[0]["Priority"])
+                self.assertGreater(rows[0]["Target lifetime mementos % (estimate)"], 0)
 
     def test_companion_deadly_damage_build_matrix(self):
         p = parse_player(api_player(monuments={"SeasonalArtifact6": 93000}))
@@ -277,10 +278,9 @@ class ItemTests(unittest.TestCase):
         p.relics = Decimal('1e100')
         self.assertTrue(all(row["Affordable"] is True for row in rank_items(p, Settings())))
 
-    def test_lifetime_targets_equalize_gain_per_investment(self):
-        # Power = L^4 and gold = L^12, each with cumulative spend ~ L^2:
-        # maximizing log power + log gold spends 25% and 75%, regardless
-        # of the current levels, remaining balance or absolute price scales.
+    def test_primary_fallback_uses_growth_weights_without_cost_inference(self):
+        # Weighted primary growth 4:12 supplies a provisional 25:75 split.
+        # It must not infer a spending budget from levels or balances.
         p = parse_player(api_player())
         p.monuments = {"damage": Decimal(100), "gold": Decimal(1000),
                        "offbuild": Decimal(20), "capped": Decimal(40), "unknown": Decimal(5)}
@@ -334,12 +334,13 @@ class ItemTests(unittest.TestCase):
 
     def test_monument_build_changes_priority(self):
         p = parse_player(api_player(seasonal_artifacts=[{"artifact_id": "SeasonalArtifact31", "level": 10}]))
-        self.assertEqual(rank_items(p, Settings(), "monuments")[0]["Priority"], 1)
+        self.assertGreater(rank_items(p, Settings(), "monuments")[0]["Target lifetime mementos % (estimate)"], 0)
         cs = rank_items(p, Settings(), "monuments")[0]
         pet = rank_items(p, Settings(build="Pet"), "monuments")[0]
         self.assertIn("Not recommended", pet["Status"])
         self.assertIsNone(pet["Priority"])
-        self.assertIsNotNone(cs["log_efficiency"])
+        self.assertIsNone(cs["log_efficiency"])
+        self.assertGreater(cs["Target lifetime mementos % (estimate)"], 0)
 
     def test_low_level_off_build_monuments_cannot_win(self):
         # Reproduce the screenshot imbalance: useful monuments ~110-125k;
@@ -370,8 +371,9 @@ class ItemTests(unittest.TestCase):
                                                "The Scarred Constellation": 40,
                                                "The Clocksout Engine": 40}))
         rows = {r["ID"]: r for r in rank_items(p, Settings(build="Heavenly Strike"), "monuments")}
-        self.assertEqual(rows["SeasonalArtifact45"]["Status"], "Ranked (primary effect estimate)")
-        self.assertIsNotNone(rows["SeasonalArtifact45"]["Priority"])
+        self.assertEqual(rows["SeasonalArtifact45"]["Status"], "Primary allocation estimate")
+        self.assertIsNone(rows["SeasonalArtifact45"]["Priority"])
+        self.assertGreater(rows["SeasonalArtifact45"]["Target lifetime mementos % (estimate)"], 0)
         self.assertEqual(rows["SeasonalArtifact54"]["Status"], "Maxed")
         self.assertEqual(rows["SeasonalArtifact52"]["Status"], "Maxed")
 
@@ -398,22 +400,26 @@ class ItemTests(unittest.TestCase):
         damage_only = rank_items(p, Settings(build="Heavenly Strike", gold_weight=0), "monuments")
         self.assertEqual(damage_only[0]["ID"], "SeasonalArtifact43")
 
-    def test_shared_damage_concentration_and_finite_upgrade(self):
+    def test_primary_fallback_rejects_unverified_concentration(self):
         p = parse_player((Path(__file__).parent / "fixtures/monument-player.json").read_text())
         settings = Settings(build="Heavenly Strike")
         targets = monument_experimental_targets(p, settings)
-        self.assertGreater(targets["SeasonalArtifact43"], 80)
-        self.assertLess(targets["SeasonalArtifact43"], 100)
         self.assertAlmostEqual(sum(v for v in targets.values() if v is not None), 100)
-        top = rank_items(p, settings, "monuments")[0]
-        level = float(p.monuments["SeasonalArtifact43"])
-        expected = 14 * ((level + 1) ** .53 - level ** .53)
-        self.assertAlmostEqual(float(top["Collection gain log10 (estimate)"]), expected, places=5)
-        # At lower progression primary effects matter more: do not hard-code
-        # an 80% or 85% rule independent of the player's levels.
-        p.monuments = {k: v / 100 if v > 40 else v for k, v in p.monuments.items()}
-        lower = monument_experimental_targets(p, settings)
-        self.assertLess(lower["SeasonalArtifact43"], targets["SeasonalArtifact43"])
+        self.assertLess(targets["SeasonalArtifact43"], 20)
+        self.assertGreater(sum(v > 0 for v in targets.values() if v is not None), 10)
+        original = targets.copy()
+        # Unsupported cost coefficients must not influence displayed estimates.
+        items = catalog()["monuments"]
+        with patch.dict(items["SeasonalArtifact43"], CostCoef="1e200", CostExpo="80"):
+            self.assertEqual(original, monument_experimental_targets(p, settings))
+        p.monuments["SeasonalArtifact43"] = Decimal(125220)
+        p.monuments["SeasonalArtifact51"] = Decimal(126330)
+        rows = {r["ID"]: r for r in rank_items(p, settings, "monuments")}
+        h, g = rows["SeasonalArtifact43"], rows["SeasonalArtifact51"]
+        # Glassbone dominates the additive pool in the supplied screenshots.
+        self.assertIsNone(h["Collection gain log10 (estimate)"])
+        self.assertGreater(float(g["Collection gain log10 (estimate)"]), .029)
+        self.assertTrue(all(r["log_efficiency"] is None and r["Priority"] is None for r in rows.values()))
 
     def test_shared_damage_curve_matches_supplied_screenshots(self):
         # Display is percentage, hence +2. K-rounded levels allow a small

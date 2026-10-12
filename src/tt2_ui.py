@@ -34,8 +34,11 @@ def collection_card(row, currency, featured=False):
     icon = item_icon(row["ID"])
     artwork = f'<div class="item-art"><img src="{icon}" alt="{name}"></div>' if icon else ""
     priority = row["Priority"]
+    allocated = currency == "mementos" and (row.get("Target lifetime mementos % (estimate)") or 0) > 0
     status = "Not recommended" if row["Status"] == "Not recommended for this build / gold source" else row["Status"]
-    badge = ("Experimental priority" if currency == "mementos" else "Upgrade first") if featured else f"#{priority}" if priority else status
+    badge = ("Primary-effect allocation" if currency == "mementos" else "Upgrade first") if featured else f"#{priority}" if priority else status
+    if currency == "mementos" and not featured and (row.get("Target lifetime mementos % (estimate)") or 0) > 0:
+        badge = "Allocation estimate"
     percentage = row["Relative efficiency %"]
     value_text = f"{percentage:g}% relative efficiency" if percentage is not None else "Unranked"
     price = row["Next cost (estimate)"]
@@ -47,7 +50,7 @@ def collection_card(row, currency, featured=False):
     value_html = (f'<div class="item-value"><div class="item-efficiency">{value_text}</div>'
                   f'<div class="item-meter"><span style="width:{percentage or 0}%"></span></div>{cost_text}</div>') if value_text else ""
     st.markdown(
-        f'<article class="collection-card{ " featured" if featured else ""}{ " unranked" if priority is None else ""}">'
+        f'<article class="collection-card{ " featured" if featured else ""}{ " unranked" if priority is None and not allocated else ""}">'
         f'{artwork}<div class="item-body">'
         f'<span class="item-badge">{html.escape(badge)}</span><h4>{name}</h4>'
         f'<div class="item-level">Level {html.escape(row["Level"])}{ " · Enchanted" if row["Enchanted"] else ""}</div>'
@@ -67,7 +70,7 @@ def inventory(player, settings, kind):
         st.info(f"No {kind} were included in this export. Import a full player export to see them here.")
         return
     currency = "relics" if kind == "artifacts" else "mementos"
-    ranked = [r for r in rows if r["Priority"] is not None]
+    ranked = [r for r in rows if (r.get("Target lifetime mementos % (estimate)") or 0) > 0] if kind == "monuments" else [r for r in rows if r["Priority"] is not None]
     if kind == "monuments":
         if any(r["Status"] == "Effect needs compatible season data" for r in rows):
             st.info("Some effects need compatible season data before they can be ranked.")
@@ -80,7 +83,7 @@ def inventory(player, settings, kind):
                 st.caption(f"Best value needs more {currency}. Best affordable alternative: {next_affordable['Name']} (#{next_affordable['Priority']}).")
             else:
                 st.caption(f"Your current balance cannot buy a ranked next level. Save more {currency}.")
-    else:
+    elif kind != "monuments":
         st.info("No upgrade can be ranked from this collection: check caps, season activity and supported effects.")
     visible = rows
     display = [{field: r[field] for field in ("Priority", "Name", "Level", "Relative efficiency %", "Next cost (estimate)", "Affordable", "Gain log10 (estimate)", "Primary gain log10 (estimate)", "Collection gain log10 (estimate)", "Enchanted", "Status", "Effect", "ID")} for r in visible]
@@ -88,7 +91,8 @@ def inventory(player, settings, kind):
         for record, row in zip(display, visible):
             record["Target lifetime mementos % (estimate)"] = row["Target lifetime mementos % (estimate)"]
             record["Effect description"] = row["Effect description"]
-            record["Next-level efficiency % of best"] = record.pop("Relative efficiency %")
+            for field in ("Priority", "Relative efficiency %", "Next cost (estimate)", "Affordable"):
+                record.pop(field)
     # The featured recommendation is already visible above the collection.
     card_rows = [r for r in visible if not ranked or r["ID"] != ranked[0]["ID"]]
     for row in card_rows:
@@ -263,6 +267,6 @@ def render():
         with st.expander("Artifact model details"):
             st.caption("Estimated next-level value includes primary effects and shared damage. Book of Shadows is a separate farming decision.")
     with monument_tab:
-        st.caption(f"Available mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
+        st.caption(f"Exported mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
         inventory(player, settings, "monuments")
     render_footer()
