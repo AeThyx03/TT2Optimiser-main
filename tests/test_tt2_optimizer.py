@@ -342,6 +342,41 @@ class ItemTests(unittest.TestCase):
         self.assertIsNone(cs["log_efficiency"])
         self.assertGreater(cs["Target lifetime mementos % (estimate)"], 0)
 
+    def test_hideout_cannon_damage_routes_to_clan_ship_and_gold_gun(self):
+        # BonusInfo defines Cannon Damage as Thunder Volley + Gold Gun damage.
+        # Hideout must therefore be eligible for both affected builds.
+        for bonus in ("CannonDamage", "CannonDamagePerSeasonTitan"):
+            with self.subTest(bonus=bonus):
+                self.assertEqual(bonus_weight(bonus, Settings(build="Clan Ship")), 1)
+                self.assertEqual(bonus_weight(bonus, Settings(build="Gold Gun")), 1)
+                self.assertEqual(bonus_weight(bonus, Settings(build="Heavenly Strike")), 0)
+        self.assertEqual(
+            bonus_weight("CannonDamagePerSeasonTitan", Settings(build="Clan Ship", active_spells=("HelperBoost",))),
+            0,
+        )
+
+        p = parse_player((Path(__file__).parent / "fixtures/monument-player.json").read_text())
+        for build in ("Clan Ship", "Gold Gun"):
+            with self.subTest(build=build):
+                row = next(r for r in rank_items(p, Settings(build=build), "monuments")
+                           if r["ID"] == "SeasonalArtifact31")
+                self.assertEqual(row["Status"], "Primary allocation estimate")
+                self.assertGreater(row["Target lifetime mementos % (estimate)"], 0)
+
+    def test_hideout_growth_tracks_the_supplied_clan_ship_and_gold_gun_screenshots(self):
+        # The two supplied Hideout screenshots show +2.12e3380% at 173.08K
+        # and +8.68e3381% at 174.08K.  Screen rounding and an unmodeled
+        # in-game multiplier can move the mantissa, so verify the exponent.
+        item = catalog()["monuments"]["SeasonalArtifact31"]
+        for level, displayed_log in ((173080, 3380.326), (174080, 3381.939)):
+            with self.subTest(level=level):
+                modeled_log = (
+                    2 + math.log10(float(item["EffectPerLevel"]))
+                    + float(item["GrowthExpo"]) * math.log10(level)
+                    + math.log10(float(item["EnchantmentMult"]))
+                )
+                self.assertAlmostEqual(modeled_log, displayed_log, delta=.35)
+
     def test_low_level_off_build_monuments_cannot_win(self):
         # Reproduce the screenshot imbalance: useful monuments ~110-125k;
         # off-build monuments ~32k, previously favored by collection/cost.

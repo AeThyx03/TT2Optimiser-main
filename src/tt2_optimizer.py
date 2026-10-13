@@ -401,6 +401,17 @@ def bonus_weight(bonus, settings):
     build, gold, gw = settings.build, settings.gold, settings.gold_weight
     tap = {"Clan Ship": 0, "Shadow Clone": .6, "Heavenly Strike": 1, "Pet": 1, "Dagger": 1, "Gold Gun": .45}[build]
     hero = {"Clan Ship": 1, "Shadow Clone": .6, "Heavenly Strike": .5, "Pet": .5, "Dagger": .5, "Gold Gun": .9}[build]
+    # BonusInfo identifies Cannon Damage as Thunder Volley damage *and* Gold
+    # Gun damage.  It is not generic Clan Ship damage.  Clan Ship only gets
+    # value while Thunder Volley is part of the configured active-spell set;
+    # Gold Gun receives the direct Gold Gun component either way.
+    if bonus in {"CannonDamage", "CannonDamagePerSeasonTitan"}:
+        if build == "Gold Gun":
+            return 1.0
+        if build == "Clan Ship":
+            spells = settings.active_spells if settings.active_spells is not None else default_spells(build)
+            return float("ThunderVolley" in spells)
+        return 0.0
     if bonus in {"TapDamage", "ActiveTapDamage", "TapBoostSkillAmount"}:
         return tap
     if bonus == "TapDamagePerSeasonPrestige":
@@ -421,7 +432,8 @@ def bonus_weight(bonus, settings):
         "BuildBoostCSHSSC": ("Clan Ship", "Heavenly Strike", "Shadow Clone"),
         "BuildBoostSCPetGG": ("Shadow Clone", "Pet", "Gold Gun"),
         "PetDamage": ("Pet",), "PetAttackQTEDamage": ("Pet",), "DualPetAmount": ("Pet",),
-        "ClanShipDamage": ("Clan Ship",), "CannonDamage": ("Clan Ship",), "CannonDamagePerSeasonTitan": ("Clan Ship",),
+        "ClanShipDamage": ("Clan Ship",), "ClanShipDamagePerSeasonTitan": ("Clan Ship",),
+        "GoldGunDamageFromClanShipDamage": ("Gold Gun",),
         "UltraDaggerDamage": ("Dagger",), "StreamOfBladesSkillAmount": ("Dagger",), "GoldGunDamage": ("Gold Gun",),
         "ShadowCloneSkillAmount": ("Shadow Clone",), "BurstDamageSkillAmount": ("Heavenly Strike",),
         "TwilightBoost": ("Shadow Clone", "Heavenly Strike"), "TwilightBoostPerSeasonFairy": ("Shadow Clone", "Heavenly Strike"),
