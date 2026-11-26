@@ -9,6 +9,40 @@ python -m streamlit run streamlit_app.py --server.address 127.0.0.1
 
 In Tap Titans 2, open Settings → Services → Export. Paste the complete JSON, and select Import player. Player data stays in the current session.
 
+Users who paste JSON need **no tokens**. To optionally enable **Connect to TT2**,
+the deployment owner sets `TT2_APPLICATION_TOKEN` in Streamlit secrets or the
+server environment. For local use, add this top-level entry to
+`.streamlit/secrets.toml` (ignored by Git):
+
+```toml
+TT2_APPLICATION_TOKEN = "your-application-token"
+```
+
+For Streamlit Community Cloud, put this entry in the app's Secrets settings.
+Restart the app after configuring it. Without this credential, only JSON import
+is shown. The application token is never displayed to visitors. Do not configure
+your personal player token on the server or commit either token to Git.
+
+When enabled, each user opens **Connect to TT2**, enters **their own player token**,
+and selects **Import from TT2**. Manage player tokens in TT2 → Options → Services
+→ Player API Token. The masked player token stays in session memory;
+**Forget player token** clears it. Use a trusted deployment: the hosting server
+processes the tokens and sends them to GameHive. JSON import remains the default.
+
+The connector authenticates the `/player` Socket.IO namespace over the `/api`
+transport path, then calls `POST /player/data` while that connection is open.
+It requests skills, artifacts, seasonal artifacts, equipment sets, stage, total SP,
+and relic counters, and disconnects after each import. Refresh is manual, with
+a two-minute cooldown including failed attempts, and no automatic retries.
+GameHive also enforces its limits across sessions and deployments. Errors retain
+the previously imported profile. Install the updated requirements and restart
+Streamlit when upgrading from a JSON-only version.
+
+API imports do not update the bundled balance tables. The API schema supplies no
+game version or season identifier; confirm table compatibility before applying
+recommendations. Protocol: [REST specification](https://tt2-docs.gamehivegames.com/rest/openapi.yaml)
+and [Socket documentation](https://tt2-docs.gamehivegames.com/socket/).
+
 Choose your goal, damage type, and gold source in the build controls. Use the Skill workshop to plan a full respec or spend available points. The default Skill tree view follows the game’s six class tabs, node positions, prerequisite connections, icons, and optimized level numbers. Select a node for current/planned levels and SP changes. Copy the build JSON back into the game.
 
 The Relic armory and Season atlas show compact upgrade rows, priorities, and estimated lifetime memento targets. Model explanations and comparison exports are available in expandable panels.

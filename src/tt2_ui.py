@@ -2,6 +2,7 @@
 import json
 import html
 import base64
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -12,6 +13,7 @@ import streamlit.components.v1 as components
 from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
 from src.tt2_optimizer import GOAL_LIGHTNING_ATTEMPTS, Settings, default_spells, optimize_skills, rank_items
 from src.tt2_player import ImportError, parse_player
+from src.tt2_api import APIError, fetch_player
 
 
 @lru_cache(maxsize=128)
@@ -64,6 +66,43 @@ def install_player(payload, source):
     st.session_state.pop("tt2_result", None)
 
 
+def forget_api_tokens():
+    st.session_state.pop("tt2_api_player", None)
+
+
+def render_api_import():
+    application_token = os.environ.get("TT2_APPLICATION_TOKEN", "").strip()
+    if not application_token:
+        try:
+            application_token = str(st.secrets.get("TT2_APPLICATION_TOKEN", "")).strip()
+        except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+            pass
+    if not application_token:
+        return  # Public JSON-only deployments need no API credentials or setup UI.
+    with st.expander("Connect to TT2"):
+        st.caption("Import your player from GameHive. Refresh at most once every two minutes.")
+        st.caption("Your player token is sent to this hosting server and GameHive. It stays in this session and is not saved to a file. You can also paste JSON above without a token.")
+        with st.form("tt2_api_import"):
+            player_token = st.text_input(
+                "Player token", type="password", key="tt2_api_player",
+                help="TT2 → Options → Services → Player API Token.",
+            )
+            submitted = st.form_submit_button("Import from TT2", width="stretch")
+        st.button("Forget player token", on_click=forget_api_tokens)
+        if submitted:
+            try:
+                with st.spinner("Connecting to GameHive and importing your player…"):
+                    payload = fetch_player(application_token, player_token)
+                    install_player(payload, "GameHive API")
+                st.success("Player imported from TT2.")
+            except (APIError, ImportError) as error:
+                st.error(str(error))
+        player = st.session_state.get("tt2_player")
+        if player and player.source == "GameHive API":
+            st.caption("Imported from GameHive. Click Import from TT2 to refresh after two minutes.")
+            st.info("The API does not report a game version or season identifier. Confirm the bundled game and season tables match your game before using recommendations.")
+
+
 def inventory(player, settings, kind):
     rows = rank_items(player, settings, kind)
     if not rows:
@@ -109,23 +148,23 @@ def render_skill_tree(levels, current_levels):
 
 @st.dialog("Privacy Policy")
 def privacy_policy():
-    st.caption("Tap Titans 2 Optimizer · Last updated October 9, 2026")
+    st.caption("Tap Titans 2 Optimizer · Last updated November 26, 2026")
     st.markdown("""
 This policy describes how the current version of Tap Titans 2 Optimizer, created by Aethyx, handles your data. This is an unofficial community tool.
 
 ### 1. Information you provide
-The app processes the player JSON you import, your selected settings, and the resulting optimization plans to calculate recommendations. Only import your game export; do not include passwords or other sensitive information.
+The app processes your imported player data, selected settings, and optimization plans. You can paste a game export or, when API imports are enabled, enter your own GameHive player API token. The deployment owner configures the application token privately on the server. Do not enter your game account password.
 
 ### 2. Processing and storage
 Calculations run on the computer or server hosting the app. When you use a hosted version, your inputs are sent to that server for processing; they are not processed solely in your browser.
 
-The current optimizer keeps imported data and settings in temporary session memory. It does not intentionally save player exports to a database or file. Downloaded plans and copied build JSON remain wherever you choose to save or paste them.
+The optimizer keeps imported data, settings, and form tokens in temporary session memory. It does not intentionally save player exports or form tokens to a database or file. A deployment owner may separately configure an application token in server secrets or an environment variable. Downloaded plans and copied build JSON remain wherever you choose to save or paste them.
 
 ### 3. Third-party services
-The current interface does not integrate Google Analytics, Google AdSense, or Ko-fi. Streamlit usage statistics are disabled in the app configuration. A hosting provider may process connection information, such as IP addresses and access logs, under its own policies.
+When you select **Import from TT2**, the hosting server sends your tokens to GameHive over HTTPS and retrieves the requested player data. The connection closes after the import; there is no background refresh. The interface does not integrate Google Analytics, Google AdSense, or Ko-fi. Streamlit usage statistics are disabled. A hosting provider may process connection information under its own policies.
 
 ### 4. Your choices
-You can use the app without importing data, although optimization requires a player export. Select **Clear imported player** under **Replace player JSON** to remove the imported profile, pasted JSON, and saved plan from the active session. This does not delete files you downloaded or copies you saved elsewhere.
+Optimization requires imported player data. Select **Clear imported player** under **Replace player JSON** to remove the profile, pasted JSON, saved plan, and entered player token from the session. **Forget player token** clears only the form token. These controls do not remove server-configured credentials, downloaded files, or saved copies. Revoke a player API token inside TT2 to withdraw its access.
 
 ### 5. Changes
 This policy will be updated if the app adds persistent storage, analytics, advertising, or other data-processing services.
@@ -147,11 +186,11 @@ def render():
     st.markdown('<header class="app-title"><span class="title-emblem" aria-hidden="true">⚔</span><h1>Tap Titans 2 <span>Optimizer</span></h1></header>', unsafe_allow_html=True)
     data = catalog()
     player = st.session_state.get("tt2_player")
-    player = st.session_state.get("tt2_player")
     with st.expander("Replace player JSON" if player else "Paste player JSON", expanded=not bool(player)):
         if player and st.button("Clear imported player"):
             for key in ("tt2_player", "tt2_result", "json_input"):
                 st.session_state.pop(key, None)
+            forget_api_tokens()
             st.rerun()
         st.caption("TT2 → Settings → Services → Export. Paste the full JSON below.")
         with st.form("player_json_import", clear_on_submit=False):
@@ -164,6 +203,8 @@ def render():
             except ImportError as e:
                 st.error(str(e))
 
+    render_api_import()
+    player = st.session_state.get("tt2_player")
     if player:
         with st.container(key="reference_inputs"):
             goal_labels = {"Maximum damage": "push", "Speed": "speed", "Balanced": "balanced"}

@@ -1,2 +1,4 @@
 streamlit>=1.50
 pandas
+requests>=2.31,<3
+python-socketio[client]>=5.11,<6
