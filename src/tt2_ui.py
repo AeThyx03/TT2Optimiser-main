@@ -14,6 +14,7 @@ from src.tt2_data import BUILDS, GOLD_SOURCES, catalog
 from src.tt2_optimizer import GOAL_LIGHTNING_ATTEMPTS, Settings, default_spells, optimize_skills, rank_items
 from src.tt2_player import ImportError, parse_player
 from src.tt2_api import APIError, fetch_player
+from src.tt2_season_ui import render_season_builds
 
 
 @lru_cache(maxsize=128)
@@ -64,6 +65,7 @@ def install_player(payload, source):
     player = parse_player(payload, source)
     st.session_state["tt2_player"] = player
     st.session_state.pop("tt2_result", None)
+    st.session_state.pop("tt2_season_observations", None)
 
 
 def forget_api_tokens():
@@ -188,7 +190,7 @@ def render():
     player = st.session_state.get("tt2_player")
     with st.expander("Replace player JSON" if player else "Paste player JSON", expanded=not bool(player)):
         if player and st.button("Clear imported player"):
-            for key in ("tt2_player", "tt2_result", "json_input"):
+            for key in ("tt2_player", "tt2_result", "json_input", "tt2_season_observations"):
                 st.session_state.pop(key, None)
             forget_api_tokens()
             st.rerun()
@@ -238,7 +240,7 @@ def render():
         cols[1].metric("Available SP", f"{player.available_sp:,}" if player.skills_known else "Unknown")
         spent_text = f"{player.spent_sp:,}" if player.skills_known else "Unknown"
         st.markdown(f'<div class="secondary-stats"><span>Spent <strong>{spent_text}</strong></span><span>Artifacts <strong>{sum(v > 0 for v in player.artifacts.values())}</strong></span><span>Monuments <strong>{sum(v > 0 for v in player.monuments.values())}</strong></span></div>', unsafe_allow_html=True)
-    skills_tab, artifact_tab, monument_tab = st.tabs(["Skills", "Artifacts", "Monuments"])
+    skills_tab, artifact_tab, monument_tab, season_tab = st.tabs(["Skills", "Artifacts", "Monuments", "Season builds"])
     with skills_tab:
         c1, c2 = st.columns([3, 1])
         mode_label = c1.radio("Planning mode", ["Full respec", "Spend available points"], horizontal=True)
@@ -310,4 +312,6 @@ def render():
     with monument_tab:
         st.caption(f"Exported mementos: {player.mementos:.4E}" if player.mementos is not None else "Available mementos were not included in this export.")
         inventory(player, settings, "monuments")
+    with season_tab:
+        render_season_builds(player, settings)
     render_footer()

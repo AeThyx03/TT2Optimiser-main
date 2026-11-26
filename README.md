@@ -45,6 +45,22 @@ and [Socket documentation](https://tt2-docs.gamehivegames.com/socket/).
 
 Choose your goal, damage type, and gold source in the build controls. Use the Skill workshop to plan a full respec or spend available points. The default Skill tree view follows the game’s six class tabs, node positions, prerequisite connections, icons, and optimized level numbers. Select a node for current/planned levels and SP changes. Copy the build JSON back into the game.
 
+Open **Season builds** after importing a profile to compare all six damage types
+against your current monuments. The import provides owned IDs, levels, and
+enchantment flags. Enter the current primary damage or gold multiplier from
+the game and select which builds it applies to. For a conditional effect,
+enter the effective multiplier at the intended condition and spell setup.
+The comparison uses only the recorded multipliers and assumes they multiply.
+Shared All Monument Damage can be omitted because it applies equally to every
+build. The push score uses log₁₀ damage plus the selected gold weight times
+log₁₀ gold. It measures support from the recorded monuments.
+
+For speed, record runs over the same start and target stages with the same
+perks and monument levels. The comparison ranks the median time of completed
+runs in that range. GameHive's player API provides inventory and levels.
+Record effect values and times from the game. Importing another snapshot
+clears the comparison so measurements stay with the levels and season used.
+
 The Relic armory and Season atlas show compact upgrade rows, priorities, and estimated lifetime memento targets. Model explanations and comparison exports are available in expandable panels.
 
 Choose a skill **Optimization goal**:
